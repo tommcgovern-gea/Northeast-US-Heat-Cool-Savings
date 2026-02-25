@@ -4,12 +4,11 @@ import { mockBuildings } from "@/lib/mock-buildings";
 import { mockAlertEvents, mockMessages, AlertEvent, Message } from "@/lib/mock-alerts";
 import { fetchNWSHourlyForecast } from "@/lib/controllers/weatherController";
 
-const CRON_SECRET = process.env.CRON_SECRET;
-
 /**
  * Verify the x-cron-secret header matches CRON_SECRET env var.
  */
 function verifyCronSecret(req: NextRequest): boolean {
+  const CRON_SECRET = process.env.CRON_SECRET;
   const secret = req.headers.get("x-cron-secret");
   return !!CRON_SECRET && secret === CRON_SECRET;
 }
@@ -20,7 +19,7 @@ function verifyCronSecret(req: NextRequest): boolean {
 function queueMessagesForCity(
   cityId: string,
   alertEvent: AlertEvent,
-  messageContent: string
+  messageContentTemplate: string
 ): number {
   const buildings = mockBuildings.filter(
     (b) => b.cityId === cityId && b.isActive && !b.isPaused
@@ -33,18 +32,32 @@ function queueMessagesForCity(
     for (const recipient of recipients) {
       if (!recipient.isActive) continue;
 
+      const baseMessage = {
+        id: Date.now().toString() + "-" + Math.random().toString(36).substr(2, 5),
+        alertEventId: alertEvent.id,
+        buildingId: building.id,
+        recipientId: recipient.id,
+        status: "PENDING" as any,
+        sentAt: null,
+        createdAt: new Date().toISOString(),
+        uploadReceived: false
+      };
+
+      // Generate unique token for this specific message
+      const uploadToken = Buffer.from(`${baseMessage.id}-${Date.now()}`).toString("base64");
+      // Token expires in 2 hours
+      const tokenExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+      const content = messageContentTemplate.replace("{uploadToken}", uploadToken);
+
       // Queue email if preferred
       if (recipient.preferEmail && recipient.email) {
         const msg: Message = {
-          id: Date.now().toString() + "-" + Math.random().toString(36).substr(2, 5),
-          alertEventId: alertEvent.id,
-          buildingId: building.id,
-          recipientId: recipient.id,
+          ...baseMessage,
+          id: baseMessage.id + "-E",
           channel: "EMAIL",
-          status: "PENDING",
-          content: messageContent,
-          sentAt: null,
-          createdAt: new Date().toISOString(),
+          content,
+          uploadToken,
+          tokenExpiresAt,
         };
         mockMessages.push(msg);
         messageCount++;
@@ -53,15 +66,12 @@ function queueMessagesForCity(
       // Queue SMS if preferred
       if (recipient.preferSms && recipient.phone) {
         const msg: Message = {
-          id: Date.now().toString() + "-" + Math.random().toString(36).substr(2, 5),
-          alertEventId: alertEvent.id,
-          buildingId: building.id,
-          recipientId: recipient.id,
+          ...baseMessage,
+          id: baseMessage.id + "-S",
           channel: "SMS",
-          status: "PENDING",
-          content: messageContent,
-          sentAt: null,
-          createdAt: new Date().toISOString(),
+          content,
+          uploadToken,
+          tokenExpiresAt,
         };
         mockMessages.push(msg);
         messageCount++;
@@ -121,7 +131,7 @@ export const checkAlerts = async (req: NextRequest) => {
         alertIds.push(alertEvent.id);
 
         // Queue messages for all active buildings
-        const messageContent = `⚠️ SUDDEN TEMP ALERT for ${city.name}: Temperature is expected to change by ${delta}°F in the next ${city.alertWindowHours} hours (${tempNow}°F → ${tempLater}°F). Please take necessary precautions.`;
+        const messageContent = `⚠️ SUDDEN TEMP ALERT for ${city.name}: Temperature is expected to change by ${delta}°F in the next ${city.alertWindowHours} hours (${tempNow}°F → ${tempLater}°F). Please take necessary precautions.\n\nUpload photo: /upload?token={uploadToken}`;
 
         queueMessagesForCity(city.id, alertEvent, messageContent);
       }
@@ -187,10 +197,7 @@ export const dailySummary = async (req: NextRequest) => {
 
       mockAlertEvents.push(alertEvent);
 
-      // Generate upload token (mock — 2hr expiry window)
-      const uploadToken = Buffer.from(`${city.id}-${Date.now()}`).toString("base64");
-
-      const messageContent = `📊 Daily Temperature Summary for ${city.name}:\nCurrent: ${currentTemp}°F | High: ${highTemp}°F | Low: ${lowTemp}°F\nTrend: ${trend}\n\nUpload your compliance photo: /upload?token=${uploadToken}`;
+      const messageContent = `📊 Daily Temperature Summary for ${city.name}:\nCurrent: ${currentTemp}°F | High: ${highTemp}°F | Low: ${lowTemp}°F\nTrend: ${trend}\n\nUpload your compliance photo: /upload?token={uploadToken}`;
 
       const count = queueMessagesForCity(city.id, alertEvent, messageContent);
       messagesSent += count;
