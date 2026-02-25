@@ -3,6 +3,7 @@ import { db } from '@/lib/db/client';
 import { sendEmail } from './emailService';
 import { sql } from '@vercel/postgres';
 import { put } from '@vercel/blob';
+import PDFDocument from 'pdfkit';
 
 export interface ReportData {
   buildingId: string;
@@ -82,143 +83,141 @@ export class ReportService {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    h1 { color: #333; }
-    .header { margin-bottom: 30px; }
-    .section { margin: 20px 0; }
-    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
-    .savings { color: green; font-weight: bold; }
-    .increase { color: red; font-weight: bold; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Energy Savings Report</h1>
-    <p><strong>Building:</strong> ${reportData.buildingName}</p>
-    <p><strong>Period:</strong> ${monthNames[reportData.month - 1]} ${reportData.year}</p>
-  </div>
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50 });
+        const chunks: Buffer[] = [];
 
-  <div class="section">
-    <h2>Consumption Data</h2>
-    <table>
-      <tr>
-        <th>Fuel Type</th>
-        <th>Consumption</th>
-      </tr>
-      ${reportData.comparison.electricKWH ? `<tr><td>Electric</td><td>${reportData.comparison.electricKWH.toLocaleString()} kWh</td></tr>` : ''}
-      ${reportData.comparison.gasTherms ? `<tr><td>Gas</td><td>${reportData.comparison.gasTherms.toLocaleString()} therms</td></tr>` : ''}
-      ${reportData.comparison.fuelOilGallons ? `<tr><td>Fuel Oil</td><td>${reportData.comparison.fuelOilGallons.toLocaleString()} gallons</td></tr>` : ''}
-      ${reportData.comparison.districtSteamMBTU ? `<tr><td>District Steam</td><td>${reportData.comparison.districtSteamMBTU.toLocaleString()} MBTU</td></tr>` : ''}
-      <tr>
-        <td><strong>Total</strong></td>
-        <td><strong>${reportData.comparison.totalKBTU.toLocaleString()} kBTU</strong></td>
-      </tr>
-    </table>
-  </div>
+        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('end', async () => {
+          try {
+            const pdfBuffer = Buffer.concat(chunks);
+            const fileName = `energy-report-${reportData.buildingId}-${reportData.year}-${reportData.month}.pdf`;
+            
+            const blob = await put(fileName, pdfBuffer, {
+              access: 'public',
+              contentType: 'application/pdf',
+            });
 
-  <div class="section">
-    <h2>Degree Days</h2>
-    <table>
-      <tr>
-        <th>Type</th>
-        <th>Value</th>
-      </tr>
-      <tr>
-        <td>Heating Degree Days (HDD)</td>
-        <td>${reportData.comparison.hdd.toLocaleString()}</td>
-      </tr>
-      <tr>
-        <td>Cooling Degree Days (CDD)</td>
-        <td>${reportData.comparison.cdd.toLocaleString()}</td>
-      </tr>
-    </table>
-  </div>
+            resolve(blob.url);
+          } catch (error) {
+            reject(error);
+          }
+        });
+        doc.on('error', reject);
 
-  <div class="section">
-    <h2>Normalized Consumption</h2>
-    <table>
-      <tr>
-        <th>Metric</th>
-        <th>Current</th>
-        <th>Baseline</th>
-        <th>Unit</th>
-      </tr>
-      ${reportData.comparison.hdd > 0 ? `
-      <tr>
-        <td>Consumption per HDD</td>
-        <td>${reportData.comparison.currentConsumptionPerHDD.toFixed(4)}</td>
-        <td>${reportData.comparison.baselineConsumptionPerHDD.toFixed(4)}</td>
-        <td>kBTU/HDD</td>
-      </tr>
-      ` : ''}
-      ${reportData.comparison.cdd > 0 ? `
-      <tr>
-        <td>Consumption per CDD</td>
-        <td>${reportData.comparison.currentConsumptionPerCDD.toFixed(4)}</td>
-        <td>${reportData.comparison.baselineConsumptionPerCDD.toFixed(4)}</td>
-        <td>kBTU/CDD</td>
-      </tr>
-      ` : ''}
-    </table>
-  </div>
+        // Header
+        doc.fontSize(20).text('Energy Savings Report', { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(12).text(`Building: ${reportData.buildingName}`, { align: 'center' });
+        doc.text(`Period: ${monthNames[reportData.month - 1]} ${reportData.year}`, { align: 'center' });
+        doc.moveDown(2);
 
-  <div class="section">
-    <h2>Savings Analysis</h2>
-    <table>
-      <tr>
-        <th>Metric</th>
-        <th>Value</th>
-      </tr>
-      <tr>
-        <td>Savings Percentage</td>
-        <td class="${reportData.comparison.savingsPercentage >= 0 ? 'savings' : 'increase'}">
-          ${reportData.comparison.savingsPercentage >= 0 ? '+' : ''}${reportData.comparison.savingsPercentage.toFixed(2)}%
-        </td>
-      </tr>
-      <tr>
-        <td>Savings (kBTU)</td>
-        <td class="${reportData.comparison.savingsKBTU >= 0 ? 'savings' : 'increase'}">
-          ${reportData.comparison.savingsKBTU >= 0 ? '+' : ''}${reportData.comparison.savingsKBTU.toLocaleString()}
-        </td>
-      </tr>
-    </table>
-  </div>
+        // Consumption Data
+        doc.fontSize(16).text('Consumption Data', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10);
+        
+        const consumptionY = doc.y;
+        doc.text('Fuel Type', 50, consumptionY);
+        doc.text('Consumption', 250, consumptionY);
+        doc.moveDown(0.5);
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+        doc.moveDown(0.3);
 
-  ${reportData.baselineInfo.heating || reportData.baselineInfo.cooling ? `
-  <div class="section">
-    <h2>Baseline Information</h2>
-    <p><strong>Baseline Period:</strong> Calculated from historical data</p>
-    ${reportData.baselineInfo.heating ? `
-    <p><strong>Heating Baseline:</strong> ${reportData.baselineInfo.heating.dataPoints} data points from ${new Date(reportData.baselineInfo.heating.periodStart).toLocaleDateString()} to ${new Date(reportData.baselineInfo.heating.periodEnd).toLocaleDateString()}</p>
-    ` : ''}
-    ${reportData.baselineInfo.cooling ? `
-    <p><strong>Cooling Baseline:</strong> ${reportData.baselineInfo.cooling.dataPoints} data points from ${new Date(reportData.baselineInfo.cooling.periodStart).toLocaleDateString()} to ${new Date(reportData.baselineInfo.cooling.periodEnd).toLocaleDateString()}</p>
-    ` : ''}
-  </div>
-  ` : ''}
+        if (reportData.comparison.electricKWH) {
+          doc.text(`Electric: ${reportData.comparison.electricKWH.toLocaleString()} kWh`, 50);
+          doc.moveDown(0.3);
+        }
+        if (reportData.comparison.gasTherms) {
+          doc.text(`Gas: ${reportData.comparison.gasTherms.toLocaleString()} therms`, 50);
+          doc.moveDown(0.3);
+        }
+        if (reportData.comparison.fuelOilGallons) {
+          doc.text(`Fuel Oil: ${reportData.comparison.fuelOilGallons.toLocaleString()} gallons`, 50);
+          doc.moveDown(0.3);
+        }
+        if (reportData.comparison.districtSteamMBTU) {
+          doc.text(`District Steam: ${reportData.comparison.districtSteamMBTU.toLocaleString()} MBTU`, 50);
+          doc.moveDown(0.3);
+        }
+        doc.moveDown(0.3);
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+        doc.moveDown(0.3);
+        doc.fontSize(11).font('Helvetica-Bold');
+        doc.text(`Total: ${reportData.comparison.totalKBTU.toLocaleString()} kBTU`, 50);
+        doc.font('Helvetica').fontSize(10);
+        doc.moveDown(1.5);
 
-  <div class="section">
-    <p><em>Report generated on ${new Date().toLocaleString()}</em></p>
-  </div>
-</body>
-</html>
-    `;
+        // Degree Days
+        doc.fontSize(16).text('Degree Days', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10);
+        doc.text(`Heating Degree Days (HDD): ${reportData.comparison.hdd.toLocaleString()}`, 50);
+        doc.moveDown(0.3);
+        doc.text(`Cooling Degree Days (CDD): ${reportData.comparison.cdd.toLocaleString()}`, 50);
+        doc.moveDown(1.5);
 
-    const fileName = `energy-report-${reportData.buildingId}-${reportData.year}-${reportData.month}.html`;
-    const blob = await put(fileName, html, {
-      access: 'public',
-      contentType: 'text/html',
+        // Normalized Consumption
+        doc.fontSize(16).text('Normalized Consumption', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10);
+        
+        if (reportData.comparison.hdd > 0) {
+          doc.text('Consumption per HDD:', 50);
+          doc.text(`Current: ${reportData.comparison.currentConsumptionPerHDD.toFixed(4)} kBTU/HDD`, 70);
+          doc.text(`Baseline: ${reportData.comparison.baselineConsumptionPerHDD.toFixed(4)} kBTU/HDD`, 70);
+          doc.moveDown(0.5);
+        }
+        if (reportData.comparison.cdd > 0) {
+          doc.text('Consumption per CDD:', 50);
+          doc.text(`Current: ${reportData.comparison.currentConsumptionPerCDD.toFixed(4)} kBTU/CDD`, 70);
+          doc.text(`Baseline: ${reportData.comparison.baselineConsumptionPerCDD.toFixed(4)} kBTU/CDD`, 70);
+          doc.moveDown(1.5);
+        }
+
+        // Savings Analysis
+        doc.fontSize(16).text('Savings Analysis', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10);
+        
+        const savingsColor = reportData.comparison.savingsPercentage >= 0 ? 'green' : 'red';
+        doc.fillColor(savingsColor);
+        doc.text(`Savings Percentage: ${reportData.comparison.savingsPercentage >= 0 ? '+' : ''}${reportData.comparison.savingsPercentage.toFixed(2)}%`, 50);
+        doc.moveDown(0.3);
+        doc.text(`Savings (kBTU): ${reportData.comparison.savingsKBTU >= 0 ? '+' : ''}${reportData.comparison.savingsKBTU.toLocaleString()}`, 50);
+        doc.fillColor('black');
+        doc.moveDown(1.5);
+
+        // Baseline Information
+        if (reportData.baselineInfo.heating || reportData.baselineInfo.cooling) {
+          doc.fontSize(16).text('Baseline Information', { underline: true });
+          doc.moveDown(0.5);
+          doc.fontSize(10);
+          
+          if (reportData.baselineInfo.heating) {
+            doc.text(`Heating Baseline: ${reportData.baselineInfo.heating.dataPoints} data points`, 50);
+            doc.text(`Period: ${new Date(reportData.baselineInfo.heating.periodStart).toLocaleDateString()} to ${new Date(reportData.baselineInfo.heating.periodEnd).toLocaleDateString()}`, 70);
+            doc.moveDown(0.5);
+          }
+          if (reportData.baselineInfo.cooling) {
+            doc.text(`Cooling Baseline: ${reportData.baselineInfo.cooling.dataPoints} data points`, 50);
+            doc.text(`Period: ${new Date(reportData.baselineInfo.cooling.periodStart).toLocaleDateString()} to ${new Date(reportData.baselineInfo.cooling.periodEnd).toLocaleDateString()}`, 70);
+            doc.moveDown(0.5);
+          }
+        }
+
+        // Footer
+        doc.moveDown(2);
+        doc.fontSize(8).fillColor('gray');
+        doc.text(`Report generated on ${new Date().toLocaleString()}`, 50, doc.page.height - 50, { align: 'center' });
+        doc.fillColor('black');
+
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
     });
-
-    return blob.url;
   }
 
   async saveReport(
@@ -248,6 +247,36 @@ export class ReportService {
       LIMIT 1
     `;
 
+    // Check if report already exists
+    const existing = await sql`
+      SELECT id FROM energy_reports
+      WHERE building_id = ${buildingId}
+        AND month = ${month}
+        AND year = ${year}
+      LIMIT 1
+    `;
+
+    if (existing.rows.length > 0) {
+      // Update existing report
+      await sql`
+        UPDATE energy_reports
+        SET utility_consumption_id = ${utilityResult.rows.length > 0 ? utilityResult.rows[0].id : null},
+            degree_days_id = ${degreeDaysResult.rows.length > 0 ? degreeDaysResult.rows[0].id : null},
+            consumption_per_hdd = ${reportData.comparison.currentConsumptionPerHDD},
+            consumption_per_cdd = ${reportData.comparison.currentConsumptionPerCDD},
+            baseline_consumption_per_hdd = ${reportData.comparison.baselineConsumptionPerHDD},
+            baseline_consumption_per_cdd = ${reportData.comparison.baselineConsumptionPerCDD},
+            savings_percentage = ${reportData.comparison.savingsPercentage},
+            savings_kbtu = ${reportData.comparison.savingsKBTU},
+            report_data = ${JSON.stringify(reportData)}::jsonb,
+            pdf_url = ${pdfUrl},
+            generated_at = NOW()
+        WHERE id = ${existing.rows[0].id}
+      `;
+      return existing.rows[0].id;
+    }
+
+    // Insert new report
     const result = await sql`
       INSERT INTO energy_reports (
         building_id, month, year,
@@ -269,20 +298,8 @@ export class ReportService {
         ${JSON.stringify(reportData)}::jsonb,
         ${pdfUrl}
       )
-      ON CONFLICT DO NOTHING
       RETURNING id
     `;
-
-    if (result.rows.length === 0) {
-      const existing = await sql`
-        SELECT id FROM energy_reports
-        WHERE building_id = ${buildingId}
-          AND month = ${month}
-          AND year = ${year}
-        LIMIT 1
-      `;
-      return existing.rows[0].id;
-    }
 
     return result.rows[0].id;
   }
