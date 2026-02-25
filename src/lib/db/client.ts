@@ -1,6 +1,7 @@
-import { neon, sql } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 
 const client = neon(process.env.POSTGRES_URL || '');
+export const sql = client;
 
 export interface City {
   id: string;
@@ -61,7 +62,8 @@ export interface TemperatureSnapshot {
 export const db = {
   async query(text: string, params?: any[]) {
     try {
-      const result = await client.query(text, params);
+      // Neon client supports query method for parameterized queries
+      const result = await (client as any).query(text, params);
       return result;
     } catch (error) {
       console.error('Database query error:', error);
@@ -130,7 +132,7 @@ export const db = {
     values.push(id);
     const query = `UPDATE cities SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
     
-    const result = await client.query(query, values);
+    const result = await (client as any).query(query, values);
     return result.rows[0] as City;
   },
 

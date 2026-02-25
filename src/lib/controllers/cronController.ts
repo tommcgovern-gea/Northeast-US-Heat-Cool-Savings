@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
 import { alertService } from "@/lib/services/alertService";
 import { messageService } from "@/lib/services/messageService";
-import { sql } from "@neondatabase/serverless";
+import { sql } from '@/lib/db/client';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 

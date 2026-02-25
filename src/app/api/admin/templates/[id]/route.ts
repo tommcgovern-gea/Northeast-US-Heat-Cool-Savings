@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import { templateService } from '@/lib/services/templateService';
-import { sql } from '@neondatabase/serverless';
+import { sql } from '@/lib/db/client';
 
 export async function PUT(
   req: NextRequest,
@@ -56,7 +56,7 @@ export async function PUT(
     values.push(params.id);
     
     const query = `UPDATE message_templates SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-    const result = await sql.query(query, values);
+    const result = await (sql as any).query(query, values);
 
     if (result.rows.length === 0) {
       return NextResponse.json({ message: 'Template not found' }, { status: 404 });

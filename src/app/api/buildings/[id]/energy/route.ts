@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import { energyService } from '@/lib/services/energyService';
-import { sql } from '@neondatabase/serverless';
+import { sql } from '@/lib/db/client';
 
 export async function GET(
   req: NextRequest,

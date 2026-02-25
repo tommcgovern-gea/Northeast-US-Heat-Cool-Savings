@@ -1,4 +1,4 @@
-import { sql } from '@neondatabase/serverless';
+import { sql } from '@/lib/db/client';
 import { db } from '@/lib/db/client';
 
 export interface MessageTemplate {

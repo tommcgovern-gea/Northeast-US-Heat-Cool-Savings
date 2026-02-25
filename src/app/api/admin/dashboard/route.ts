@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import { db } from '@/lib/db/client';
 import { complianceService } from '@/lib/services/complianceService';
-import { sql } from '@neondatabase/serverless';
+import { sql } from '@/lib/db/client';
 
 export async function GET(req: NextRequest) {
   try {

@@ -1,14 +1,13 @@
-import { neon } from '@neondatabase/serverless';
+import { sql } from './client';
 import * as fs from 'fs';
 import * as path from 'path';
 
 export async function initDatabase() {
   try {
-    const client = neon(process.env.POSTGRES_URL || '');
     const schemaPath = path.join(process.cwd(), 'src/lib/db/schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf-8');
     
-    await client.query(schema);
+    await (sql as any).query(schema);
     console.log('Database schema initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);

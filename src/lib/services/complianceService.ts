@@ -13,7 +13,7 @@ export interface ComplianceStatus {
 
 export class ComplianceService {
   async checkCompliance(messageId: string): Promise<ComplianceStatus | null> {
-    const { sql } = await import('@neondatabase/serverless');
+    const { sql } = await import('@/lib/db/client');
     const messageResult = await sql`
       SELECT * FROM messages WHERE id = ${messageId}
     `;
@@ -47,7 +47,7 @@ export class ComplianceService {
   }
 
   async checkAndSendWarnings(): Promise<number> {
-    const { sql } = await import('@neondatabase/serverless');
+    const { sql } = await import('@/lib/db/client');
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
     
     const messagesResult = await sql`
@@ -111,7 +111,7 @@ export class ComplianceService {
   }
 
   async getBuildingComplianceRate(buildingId: string, days: number = 30): Promise<number> {
-    const { sql } = await import('@neondatabase/serverless');
+    const { sql } = await import('@/lib/db/client');
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const messagesResult = await sql`
@@ -138,7 +138,7 @@ export class ComplianceService {
   }
 
   async markUploadCompliant(uploadId: string): Promise<void> {
-    const { sql } = await import('@neondatabase/serverless');
+    const { sql } = await import('@/lib/db/client');
     const uploadResult = await sql`
       SELECT * FROM photo_uploads WHERE id = ${uploadId}
     `;

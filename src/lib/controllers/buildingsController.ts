@@ -167,7 +167,7 @@ export const updateBuilding = async (req: NextRequest, id: string) => {
     }
 
     const body = await req.json();
-    const { sql } = await import('@neondatabase/serverless');
+    const { sql } = await import('@/lib/db/client');
 
     const updateData: any = {};
     if (body.name !== undefined) updateData.name = body.name;
@@ -204,7 +204,7 @@ export const updateBuilding = async (req: NextRequest, id: string) => {
     updates.push(`updated_at = NOW()`);
     const query = `UPDATE buildings SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
     
-    const result = await sql.query(query, values);
+    const result = await (sql as any).query(query, values);
     
     if (result.rows.length === 0) {
       return NextResponse.json({ message: "Building not found" }, { status: 404 });

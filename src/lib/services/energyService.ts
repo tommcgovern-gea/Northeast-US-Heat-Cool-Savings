@@ -1,5 +1,4 @@
-import { sql } from '@neondatabase/serverless';
-import { db } from '@/lib/db/client';
+import { db, sql } from '@/lib/db/client';
 
 export interface UtilityConsumption {
   id: string;
