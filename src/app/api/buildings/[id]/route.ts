@@ -1,12 +1,16 @@
-import { NextRequest } from "next/server";
-import { getBuildingById, updateBuilding } from "@/lib/controllers/buildingsController";
+import { NextRequest } from 'next/server';
+import { getBuildingById, updateBuilding } from '@/lib/controllers/buildingsController';
 
-export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   return getBuildingById(req, params.id);
 }
 
-export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   return updateBuilding(req, params.id);
 }

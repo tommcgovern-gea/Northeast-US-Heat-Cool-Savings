@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mockCities } from "@/lib/mock-cities";
+import { db } from "@/lib/db/client";
 import { verifyToken, TokenPayload } from "@/lib/auth";
 
-// GET /api/cities — Admin only
 export const getCities = async (req: NextRequest) => {
   try {
     const authHeader = req.headers.get("authorization");
@@ -22,13 +21,34 @@ export const getCities = async (req: NextRequest) => {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    return NextResponse.json(mockCities);
-  } catch {
-    return NextResponse.json({ message: "Invalid token" }, { status: 401 });
+    const cities = await db.getCities();
+    
+    const citiesWithCounts = await Promise.all(
+      cities.map(async (city) => {
+        const buildings = await db.getBuildings(city.id);
+        return {
+          id: city.id,
+          name: city.name,
+          state: city.state,
+          nwsOffice: city.nws_office,
+          nwsGridX: city.nws_grid_x,
+          nwsGridY: city.nws_grid_y,
+          alertTempDelta: Number(city.alert_temp_delta),
+          alertWindowHours: city.alert_window_hours,
+          isActive: city.is_active,
+          buildingCount: buildings.length,
+          createdAt: city.created_at,
+        };
+      })
+    );
+
+    return NextResponse.json(citiesWithCounts);
+  } catch (error) {
+    console.error("Error fetching cities:", error);
+    return NextResponse.json({ message: "Error fetching cities" }, { status: 500 });
   }
 };
 
-// POST /api/cities — Admin only
 export const createCity = async (req: NextRequest) => {
   try {
     const authHeader = req.headers.get("authorization");
@@ -50,29 +70,40 @@ export const createCity = async (req: NextRequest) => {
 
     const body = await req.json();
 
-    const newCity = {
-      id: Date.now().toString(),
+    if (!body.name || !body.state || !body.nwsOffice || body.nwsGridX === undefined || body.nwsGridY === undefined) {
+      return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
+    }
+
+    const newCity = await db.createCity({
       name: body.name,
       state: body.state,
-      nwsOffice: body.nwsOffice,
-      nwsGridX: body.nwsGridX,
-      nwsGridY: body.nwsGridY,
-      alertTempDelta: body.alertTempDelta ?? 5,
-      alertWindowHours: body.alertWindowHours ?? 6,
-      isActive: true,
+      nws_office: body.nwsOffice,
+      nws_grid_x: body.nwsGridX,
+      nws_grid_y: body.nwsGridY,
+      alert_temp_delta: body.alertTempDelta ?? 5,
+      alert_window_hours: body.alertWindowHours ?? 6,
+      is_active: true,
+    });
+
+    return NextResponse.json({
+      id: newCity.id,
+      name: newCity.name,
+      state: newCity.state,
+      nwsOffice: newCity.nws_office,
+      nwsGridX: newCity.nws_grid_x,
+      nwsGridY: newCity.nws_grid_y,
+      alertTempDelta: Number(newCity.alert_temp_delta),
+      alertWindowHours: newCity.alert_window_hours,
+      isActive: newCity.is_active,
       buildingCount: 0,
-      createdAt: new Date().toISOString(),
-    };
-
-    mockCities.push(newCity);
-
-    return NextResponse.json(newCity, { status: 201 });
-  } catch {
+      createdAt: newCity.created_at,
+    }, { status: 201 });
+  } catch (error) {
+    console.error("Error creating city:", error);
     return NextResponse.json({ message: "Error creating city" }, { status: 500 });
   }
 };
 
-// PUT /api/cities/:id — Admin only
 export const updateCity = async (req: NextRequest, id: string) => {
   try {
     const authHeader = req.headers.get("authorization");
@@ -92,25 +123,44 @@ export const updateCity = async (req: NextRequest, id: string) => {
     }
 
     const body = await req.json();
-    const city = mockCities.find((c) => c.id === id);
+    const updateData: any = {};
 
-    if (!city) {
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.state !== undefined) updateData.state = body.state;
+    if (body.nwsOffice !== undefined) updateData.nws_office = body.nwsOffice;
+    if (body.nwsGridX !== undefined) updateData.nws_grid_x = body.nwsGridX;
+    if (body.nwsGridY !== undefined) updateData.nws_grid_y = body.nwsGridY;
+    if (body.alertTempDelta !== undefined) updateData.alert_temp_delta = body.alertTempDelta;
+    if (body.alertWindowHours !== undefined) updateData.alert_window_hours = body.alertWindowHours;
+    if (body.isActive !== undefined) updateData.is_active = body.isActive;
+
+    const updatedCity = await db.updateCity(id, updateData);
+
+    if (!updatedCity) {
       return NextResponse.json({ message: "City not found" }, { status: 404 });
     }
 
-    city.name = body.name ?? city.name;
-    city.state = body.state ?? city.state;
-    city.alertTempDelta = body.alertTempDelta ?? city.alertTempDelta;
-    city.alertWindowHours = body.alertWindowHours ?? city.alertWindowHours;
-    city.isActive = body.isActive ?? city.isActive;
+    const buildings = await db.getBuildings(updatedCity.id);
 
-    return NextResponse.json(city);
-  } catch {
+    return NextResponse.json({
+      id: updatedCity.id,
+      name: updatedCity.name,
+      state: updatedCity.state,
+      nwsOffice: updatedCity.nws_office,
+      nwsGridX: updatedCity.nws_grid_x,
+      nwsGridY: updatedCity.nws_grid_y,
+      alertTempDelta: Number(updatedCity.alert_temp_delta),
+      alertWindowHours: updatedCity.alert_window_hours,
+      isActive: updatedCity.is_active,
+      buildingCount: buildings.length,
+      createdAt: updatedCity.created_at,
+    });
+  } catch (error) {
+    console.error("Error updating city:", error);
     return NextResponse.json({ message: "Error updating city" }, { status: 500 });
   }
 };
 
-// DELETE /api/cities/:id — Admin only (soft delete)
 export const deleteCity = async (req: NextRequest, id: string) => {
   try {
     const authHeader = req.headers.get("authorization");
@@ -129,16 +179,11 @@ export const deleteCity = async (req: NextRequest, id: string) => {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const city = mockCities.find((c) => c.id === id);
-
-    if (!city) {
-      return NextResponse.json({ message: "City not found" }, { status: 404 });
-    }
-
-    city.isActive = false; // soft delete
+    await db.updateCity(id, { is_active: false });
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Error deleting city:", error);
     return NextResponse.json({ message: "Error deleting city" }, { status: 500 });
   }
 };
