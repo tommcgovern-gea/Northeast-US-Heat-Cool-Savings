@@ -167,7 +167,7 @@ export const updateBuilding = async (req: NextRequest, id: string) => {
     }
 
     const body = await req.json();
-    const { sql } = await import('@vercel/postgres');
+    const { sql } = await import('@neondatabase/serverless');
 
     const updateData: any = {};
     if (body.name !== undefined) updateData.name = body.name;

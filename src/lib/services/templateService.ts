@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { sql } from '@neondatabase/serverless';
 import { db } from '@/lib/db/client';
 
 export interface MessageTemplate {

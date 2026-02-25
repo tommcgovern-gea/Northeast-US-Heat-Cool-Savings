@@ -19,7 +19,7 @@ npm install
 
 This will install:
 - Next.js 16
-- @vercel/postgres (database client)
+- @neondatabase/serverless (database client)
 - @vercel/blob (file storage)
 - @sendgrid/mail (email service)
 - twilio (SMS service)
@@ -27,15 +27,24 @@ This will install:
 - jsonwebtoken (authentication)
 - TypeScript and related types
 
-### 2. Set Up Vercel Postgres Database
+### 2. Set Up Neon Postgres Database
 
+**Option A: Via Vercel (Recommended)**
 1. Go to your Vercel dashboard
-2. Navigate to **Storage** → **Create Database** → **Postgres**
-3. Create a new Postgres database
+2. Navigate to **Storage** → **Create Database** → **Neon**
+3. Create a new Neon database (or use existing if migrated from Vercel Postgres)
 4. Copy the connection strings:
    - `POSTGRES_URL`
-   - `POSTGRES_PRISMA_URL`
-   - `POSTGRES_URL_NON_POOLING`
+   - `POSTGRES_PRISMA_URL` (if available)
+   - `POSTGRES_URL_NON_POOLING` (if available)
+
+**Option B: Directly from Neon**
+1. Sign up at [neon.tech](https://neon.tech)
+2. Create a new project
+3. Copy the connection string from the Neon dashboard
+4. Use it as your `POSTGRES_URL`
+
+**Note:** If you had an existing Vercel Postgres database, it should have been automatically migrated to Neon. Check your Vercel dashboard for the migrated Neon database.
 
 ### 3. Set Up Vercel Blob Storage
 

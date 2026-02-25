@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import { db } from '@/lib/db/client';
-import { sql } from '@vercel/postgres';
+import { sql } from '@neondatabase/serverless';
 
 export async function POST(
   req: NextRequest,

@@ -3,7 +3,7 @@ import { sendSMS } from './smsService';
 import { sendEmail } from './emailService';
 import { templateService, TemplateVariables } from './templateService';
 import crypto from 'crypto';
-import { sql } from '@vercel/postgres';
+import { sql } from '@neondatabase/serverless';
 
 export interface MessageQueueItem {
   alertLogId: string;

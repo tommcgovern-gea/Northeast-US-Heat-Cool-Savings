@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
-import { sql } from '@vercel/postgres';
+import { sql } from '@neondatabase/serverless';
 import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {

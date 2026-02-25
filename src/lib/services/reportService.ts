@@ -1,7 +1,7 @@
 import { energyService, MonthlyComparison } from './energyService';
 import { db } from '@/lib/db/client';
 import { sendEmail } from './emailService';
-import { sql } from '@vercel/postgres';
+import { sql } from '@neondatabase/serverless';
 import { put } from '@vercel/blob';
 import PDFDocument from 'pdfkit';
 

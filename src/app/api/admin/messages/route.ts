@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
-import { sql } from '@vercel/postgres';
+import { sql } from '@neondatabase/serverless';
 
 export async function GET(req: NextRequest) {
   try {

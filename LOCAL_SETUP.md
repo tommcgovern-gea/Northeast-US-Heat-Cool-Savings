@@ -23,10 +23,10 @@ This guide will help you run the Heat-Cool Savings Portal locally on your machin
 
 3. **Set Up Database** (Choose one option)
 
-   **Option A: Use Vercel Postgres (Easiest)**
-   - Go to Vercel Dashboard → Storage → Postgres
-   - Create a new database
-   - Copy the connection strings to `.env.local`
+   **Option A: Use Neon Postgres (Easiest)**
+   - Go to Vercel Dashboard → Storage → Neon (or neon.tech directly)
+   - Create a new database (or use existing if migrated from Vercel Postgres)
+   - Copy the connection string to `.env.local` as `POSTGRES_URL`
    - Skip to step 4
 
    **Option B: Use Local Postgres**
@@ -48,7 +48,7 @@ This guide will help you run the Heat-Cool Savings Portal locally on your machin
 
 4. **Run Database Migrations**
    ```bash
-   # Using Vercel Postgres
+   # Using Neon Postgres
    psql $POSTGRES_URL < src/lib/db/schema.sql
    psql $POSTGRES_URL < src/lib/db/schema-milestone3.sql
    psql $POSTGRES_URL < src/lib/db/schema-milestone4.sql

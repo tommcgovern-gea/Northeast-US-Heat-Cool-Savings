@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import { reportService } from '@/lib/services/reportService';
-import { sql } from '@vercel/postgres';
+import { sql } from '@neondatabase/serverless';
 
 export async function POST(req: NextRequest) {
   try {
