@@ -1,25 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_KEY = process.env.OPENWEATHER_API_KEY;
-const BASE_URL = 'https://api.openweathermap.org/data/2.5';
-
-// Mock data generator for fallback
-const getMockWeather = (city: string) => ({
-  city: city.charAt(0).toUpperCase() + city.slice(1),
-  temperature: Math.floor(Math.random() * (30 - 15 + 1)) + 15,
-  condition: 'Cloudy',
-  icon: '03d',
-  humidity: 65,
-  wind: 12,
-  forecast: [
-    { date: 'Mon', min: 14, max: 22, condition: 'Sunny', icon: '01d' },
-    { date: 'Tue', min: 12, max: 18, condition: 'Rain', icon: '10d' },
-    { date: 'Wed', min: 15, max: 25, condition: 'Clear', icon: '01d' },
-    { date: 'Thu', min: 13, max: 20, condition: 'Cloudy', icon: '02d' },
-    { date: 'Fri', min: 11, max: 19, condition: 'Partly Cloudy', icon: '03d' },
-  ],
-});
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const city = searchParams.get('city');
@@ -28,60 +8,84 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: 'City is required' }, { status: 400 });
   }
 
-  // If no API key is set, return mock data for development
-  if (!API_KEY || API_KEY === 'your_api_key_here') {
-    console.warn('OPENWEATHER_API_KEY not found. Returning mock data.');
-    await new Promise(resolve => setTimeout(resolve, 800)); // Simulate network latency
-    return NextResponse.json(getMockWeather(city));
-  }
-
   try {
-    // Fetch Current Weather
-    const weatherRes = await fetch(
-      `${BASE_URL}/weather?q=${city}&units=metric&appid=${API_KEY}`
+    // 1. Geocode the city using Nominatim (OpenStreetMap)
+    const geoRes = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1`,
+      {
+        headers: {
+          'User-Agent': '(myweatherapp.com, contact@myweatherapp.com)'
+        }
+      }
     );
 
-    if (!weatherRes.ok) {
-      const errorData = await weatherRes.json();
-      return NextResponse.json(
-        { message: errorData.message || 'Failed to fetch weather data' },
-        { status: weatherRes.status }
-      );
+    if (!geoRes.ok) {
+      throw new Error('Failed to fetch geocoding data');
     }
 
-    const weatherData = await weatherRes.json();
+    const geoData = await geoRes.json();
 
-    // Fetch Forecast
-    const forecastRes = await fetch(
-      `${BASE_URL}/forecast?q=${city}&units=metric&appid=${API_KEY}`
-    );
+    if (!geoData || geoData.length === 0) {
+      return NextResponse.json({ message: 'City not found' }, { status: 404 });
+    }
+
+    const lat = geoData[0].lat;
+    const lon = geoData[0].lon;
+    const formattedCity = geoData[0].name;
+
+    // 2. Get the local forecast office endpoint from coordinates
+    const pointsRes = await fetch(`https://api.weather.gov/points/${lat},${lon}`, {
+      headers: {
+        'User-Agent': '(myweatherapp.com, contact@myweatherapp.com)'
+      }
+    });
+
+    if (!pointsRes.ok) {
+      if (pointsRes.status === 404) {
+        return NextResponse.json(
+          { message: 'Weather.gov only supports US locations. Please try a US city.' },
+          { status: 400 }
+        );
+      }
+      throw new Error('Failed to fetch grid point data from weather.gov');
+    }
+
+    const pointsData = await pointsRes.json();
+    const forecastUrl = pointsData.properties.forecast;
+
+    // 3. Fetch the actual forecast using the URL provided by the first request
+    const forecastRes = await fetch(forecastUrl, {
+      headers: {
+         'User-Agent': '(myweatherapp.com, contact@myweatherapp.com)'
+      }
+    });
 
     if (!forecastRes.ok) {
       throw new Error('Failed to fetch forecast data');
     }
 
     const forecastData = await forecastRes.json();
+    
+    // The periods array contains the forecast
+    const periods = forecastData.properties.periods;
+    const currentForecast = periods[0]; // The current timeframe
 
-    // Process Forecast
-    const dailyForecast = forecastData.list
-      .filter((_: any, index: number) => index % 8 === 0)
-      .slice(0, 5)
-      .map((item: any) => ({
-        date: new Date(item.dt * 1000).toLocaleDateString('en-US', { weekday: 'short' }),
-        min: Math.round(item.main.temp_min),
-        max: Math.round(item.main.temp_max),
-        condition: item.weather[0].main,
-        icon: item.weather[0].icon,
-      }));
-
+    // 4. Format it to match your frontend structure
     const response = {
-      city: weatherData.name,
-      temperature: Math.round(weatherData.main.temp),
-      condition: weatherData.weather[0].main,
-      icon: weatherData.weather[0].icon,
-      humidity: weatherData.main.humidity,
-      wind: weatherData.wind.speed,
-      forecast: dailyForecast,
+      city: formattedCity,
+      temperature: currentForecast.temperature, // Usually in Fahrenheit
+      condition: currentForecast.shortForecast,
+      icon: currentForecast.icon,
+      // NWS provides wind speed as a string like "5 to 10 mph"
+      wind: currentForecast.windSpeed, 
+      humidity: 0, // Not provided directly in standard forecast
+      forecast: periods.slice(1, 6).map((period: any) => ({
+        date: period.name, // e.g. "Wednesday" or "Wednesday Night"
+        min: period.isDaytime ? null : period.temperature,
+        max: period.isDaytime ? period.temperature : null,
+        condition: period.shortForecast,
+        icon: period.icon,
+      })),
     };
 
     return NextResponse.json(response);

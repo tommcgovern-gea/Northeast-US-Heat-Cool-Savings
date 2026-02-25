@@ -23,12 +23,13 @@ export default function WeatherCard({ data }: WeatherCardProps) {
                         </div>
                         <p className="text-slate-400 font-bold uppercase tracking-widest text-xs px-1">{data.condition}</p>
                     </div>
-                    <div className="relative w-20 h-20 drop-shadow-2xl transform group-hover:scale-110 transition-transform duration-500">
+                    <div className="relative w-24 h-24 drop-shadow-2xl transform group-hover:scale-110 transition-transform duration-500 rounded-full overflow-hidden border-2 border-slate-50 shadow-sm">
                         <Image
-                            src={`https://openweathermap.org/img/wn/${data.icon}@4x.png`}
+                            src={data.icon.startsWith('http') ? data.icon.replace('size=medium', 'size=large') : `https://openweathermap.org/img/wn/${data.icon}@4x.png`}
                             alt={data.condition}
                             fill
-                            className="object-contain"
+                            className="object-cover"
+                            unoptimized
                         />
                     </div>
                 </div>

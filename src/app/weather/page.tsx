@@ -33,7 +33,7 @@ export default function WeatherPage() {
 
     // Fetch a default city on mount for demo/client presentation
     useEffect(() => {
-        fetchWeather("London");
+        fetchWeather("Modesto");
     }, []);
 
     return (
@@ -83,8 +83,8 @@ export default function WeatherPage() {
 
                     <section className="lg:col-span-8 flex flex-col space-y-6">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                                <span className="w-2 h-6 bg-blue-500 rounded-full"></span>
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <span className="w-2 h-6 rounded-full"></span>
                                 Extented Forecast
                             </h2>
                             <div className="flex gap-2">

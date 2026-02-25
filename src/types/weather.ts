@@ -10,8 +10,8 @@ export interface WeatherData {
 
 export interface ForecastDay {
   date: string;
-  min: number;
-  max: number;
+  min: number | null;
+  max: number | null;
   condition: string;
   icon: string;
 }
