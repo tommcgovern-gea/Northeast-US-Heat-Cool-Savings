@@ -40,7 +40,7 @@ export default function CitiesPage() {
   }, []);
 
   const handleCitySearch = async (query: string) => {
-    setFormData(prev => ({ ...prev, name: query }));
+    setFormData((prev) => ({ ...prev, name: query }));
     if (query.length < 1) {
       setSuggestions([]);
       return;
@@ -49,9 +49,12 @@ export default function CitiesPage() {
     setSearching(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/admin/cities/search?q=${encodeURIComponent(query)}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(
+        `/api/admin/cities/search?q=${encodeURIComponent(query)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       if (res.ok) {
         const data = await res.json();
         setSuggestions(data);
@@ -238,10 +241,11 @@ export default function CitiesPage() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${city.isActive
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
-                      }`}
+                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      city.isActive
+                        ? "bg-green-100 text-green-800"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
                   >
                     {city.isActive ? "Active" : "Inactive"}
                   </span>
@@ -278,7 +282,12 @@ export default function CitiesPage() {
               }}
             ></div>
 
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <span
+              className="hidden sm:inline-block sm:align-middle sm:h-screen"
+              aria-hidden="true"
+            >
+              &#8203;
+            </span>
 
             <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
               <form onSubmit={handleCreate}>
@@ -344,15 +353,18 @@ export default function CitiesPage() {
                         <input
                           type="text"
                           required
+                          maxLength={4}
+                          placeholder="e.g. OKX — or search city above to auto-fill"
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                           value={formData.nwsOffice}
                           onChange={(e) =>
                             setFormData({
                               ...formData,
-                              nwsOffice: e.target.value.toUpperCase(),
+                              nwsOffice: e.target.value.toUpperCase().replace(/\s/g, ""),
                             })
                           }
                         />
+                        <p className="mt-1 text-xs text-gray-500">3-letter code (OKX, LWX, BOS). Search city above to fill automatically.</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -363,10 +375,16 @@ export default function CitiesPage() {
                         <input
                           type="number"
                           required
+                          min={0}
+                          max={999}
+                          placeholder="e.g. 33"
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                           value={formData.nwsGridX}
                           onChange={(e) =>
-                            setFormData({ ...formData, nwsGridX: e.target.value })
+                            setFormData({
+                              ...formData,
+                              nwsGridX: e.target.value,
+                            })
                           }
                         />
                       </div>
@@ -377,14 +395,21 @@ export default function CitiesPage() {
                         <input
                           type="number"
                           required
+                          min={0}
+                          max={999}
+                          placeholder="e.g. 35"
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                           value={formData.nwsGridY}
                           onChange={(e) =>
-                            setFormData({ ...formData, nwsGridY: e.target.value })
+                            setFormData({
+                              ...formData,
+                              nwsGridY: e.target.value,
+                            })
                           }
                         />
                       </div>
                     </div>
+                    <p className="text-xs text-gray-500 -mt-2">Grid X/Y: integers for the NWS office. Search city above to auto-fill, or use api.weather.gov.</p>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700">

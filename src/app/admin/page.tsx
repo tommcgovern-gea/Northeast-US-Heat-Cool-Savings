@@ -102,8 +102,18 @@ export default function AdminDashboard() {
   if (!data) return null;
 
   const monthNames = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
 
   return (
@@ -149,7 +159,8 @@ export default function AdminDashboard() {
                     Active Buildings
                   </dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {data.overview.activeBuildings} / {data.overview.totalBuildings}
+                    {data.overview.activeBuildings} /{" "}
+                    {data.overview.totalBuildings}
                   </dd>
                 </dl>
               </div>

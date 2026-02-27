@@ -71,10 +71,10 @@ export default function AdminLayout({
     { name: "Cities", href: "/admin/cities", icon: "🏙️" },
     { name: "Buildings", href: "/admin/buildings", icon: "🏢" },
     { name: "Recipients", href: "/admin/recipients", icon: "👥" },
-    { name: "Templates", href: "/admin/templates", icon: "📝" },
-    { name: "Compliance", href: "/admin/compliance", icon: "✅" },
-    { name: "Messages", href: "/admin/messages", icon: "💬" },
-    { name: "Energy Reports", href: "/admin/energy", icon: "⚡" },
+    // { name: "Templates", href: "/admin/templates", icon: "📝" },
+    // { name: "Compliance", href: "/admin/compliance", icon: "✅" },
+    // { name: "Messages", href: "/admin/messages", icon: "💬" },
+    // { name: "Energy Reports", href: "/admin/energy", icon: "⚡" },
   ];
 
   return (

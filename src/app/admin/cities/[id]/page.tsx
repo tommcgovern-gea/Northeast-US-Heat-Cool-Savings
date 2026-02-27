@@ -209,15 +209,20 @@ export default function CityDetailPage() {
               <input
                 type="text"
                 required
+                maxLength={4}
+                placeholder="e.g. OKX"
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                 value={formData.nwsOffice}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    nwsOffice: e.target.value.toUpperCase(),
+                    nwsOffice: e.target.value.toUpperCase().replace(/\s/g, ""),
                   })
                 }
               />
+              <p className="mt-1 text-xs text-gray-500">
+                3-letter NWS office code. Examples: OKX (NYC), LWX (DC), BOS (Boston), FFX (DC area). 
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -228,6 +233,9 @@ export default function CityDetailPage() {
                 <input
                   type="number"
                   required
+                  min={0}
+                  max={999}
+                  placeholder="e.g. 33"
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                   value={formData.nwsGridX}
                   onChange={(e) =>
@@ -243,6 +251,9 @@ export default function CityDetailPage() {
                 <input
                   type="number"
                   required
+                  min={0}
+                  max={999}
+                  placeholder="e.g. 35"
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                   value={formData.nwsGridY}
                   onChange={(e) =>

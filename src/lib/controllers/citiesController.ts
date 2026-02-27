@@ -149,7 +149,7 @@ export const createCity = async (req: NextRequest) => {
     const isValidNWS = await validateNWSCoordinates(body.nwsOffice, body.nwsGridX, body.nwsGridY);
     if (!isValidNWS) {
       return NextResponse.json({
-        message: "Invalid NWS coordinates. Could not verify this location with the National Weather Service."
+        message: "Invalid NWS coordinates. Could not verify this location with the National Weather Service. Use a 3-letter office code (e.g. OKX, LWX) and valid Grid X/Y integers for that office. Search by city name when adding a city to auto-fill, or check api.weather.gov."
       }, { status: 400 });
     }
 
@@ -227,7 +227,7 @@ export const updateCity = async (req: NextRequest, id: string) => {
       const isValidNWS = await validateNWSCoordinates(office, gridX, gridY);
       if (!isValidNWS) {
         return NextResponse.json({
-          message: "Invalid NWS coordinates. Could not verify this location with the National Weather Service."
+          message: "Invalid NWS coordinates. Use a 3-letter office code (e.g. OKX, LWX) and valid Grid X/Y for that office. When adding a city, search by name to auto-fill; or check api.weather.gov."
         }, { status: 400 });
       }
     }
