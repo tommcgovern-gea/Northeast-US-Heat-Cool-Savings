@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db/client";
+import { db, sql } from "@/lib/db/client";
 import { verifyToken, TokenPayload } from "@/lib/auth";
 import { complianceService } from "@/lib/services/complianceService";
 
@@ -27,13 +27,18 @@ export const getBuildings = async (req: NextRequest) => {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
+    const list = Array.isArray(buildings) ? buildings : [];
     const responseData = await Promise.all(
-      buildings.map(async (b) => {
+      list.map(async (b) => {
         const recipients = await db.getRecipients(b.id);
-        const complianceRate = await complianceService.getBuildingComplianceRate(b.id, 30);
-        
+        let complianceRate = 0;
+        try {
+          complianceRate = await complianceService.getBuildingComplianceRate(b.id, 30);
+        } catch {
+          // Tables may not exist yet; use 0
+        }
         const city = await db.getCityById(b.city_id);
-        
+
         return {
           id: b.id,
           name: b.name,
@@ -204,13 +209,14 @@ export const updateBuilding = async (req: NextRequest, id: string) => {
     updates.push(`updated_at = NOW()`);
     const query = `UPDATE buildings SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
     
-    const result = await (sql as any).query(query, values);
-    
-    if (result.rows.length === 0) {
+const result = await (sql as any)(query, values);
+    const rows = Array.isArray(result) ? result : (result?.rows ?? []);
+
+    if (rows.length === 0) {
       return NextResponse.json({ message: "Building not found" }, { status: 404 });
     }
 
-    const building = result.rows[0];
+    const building = rows[0];
 
     return NextResponse.json({
         id: building.id,

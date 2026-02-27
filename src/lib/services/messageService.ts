@@ -1,4 +1,4 @@
-import { db, sql } from '@/lib/db/client';
+import { db, sql, toRows } from '@/lib/db/client';
 import { sendSMS } from './smsService';
 import { sendEmail } from './emailService';
 import { templateService, TemplateVariables } from './templateService';
@@ -91,7 +91,7 @@ export class MessageService {
       LIMIT 100
     `;
 
-    const messages = result.rows;
+    const messages = toRows(result);
     let sent = 0;
     let failed = 0;
 
@@ -105,7 +105,7 @@ export class MessageService {
           const recipientResult = await sql`
             SELECT * FROM recipients WHERE id = ${msg.recipient_id}
           `;
-          const recipient = recipientResult.rows[0];
+          const recipient = toRows(recipientResult)[0];
           
           if (recipient?.phone) {
             const smsResult = await sendSMS(recipient.phone, msg.content);
@@ -117,7 +117,7 @@ export class MessageService {
           const recipientResult = await sql`
             SELECT * FROM recipients WHERE id = ${msg.recipient_id}
           `;
-          const recipient = recipientResult.rows[0];
+          const recipient = toRows(recipientResult)[0];
           
           if (recipient?.email) {
             const subject = msg.message_type === 'alert' 
@@ -165,13 +165,13 @@ export class MessageService {
   }
 
   async createMessagesFromAlert(alertLogId: string, cityId: string): Promise<string[]> {
-    const alertLog = await sql`
+    const alertLogResult = await sql`
       SELECT * FROM alert_logs WHERE id = ${alertLogId}
     `;
+    const alertLogRows = toRows(alertLogResult);
+    if (alertLogRows.length === 0) return [];
 
-    if (alertLog.rows.length === 0) return [];
-
-    const alert = alertLog.rows[0];
+    const alert = alertLogRows[0];
     const buildings = await db.getBuildings(cityId);
     const activeBuildings = buildings.filter(b => b.is_active && !b.is_paused);
 

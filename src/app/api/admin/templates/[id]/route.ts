@@ -102,13 +102,14 @@ export async function PUT(
     values.push(params.id);
     
     const query = `UPDATE message_templates SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-    const result = await (sql as any).query(query, values);
+    const result = await (sql as any)(query, values);
+    const rows = Array.isArray(result) ? result : (result?.rows ?? []);
 
-    if (result.rows.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ message: 'Template not found' }, { status: 404 });
     }
 
-    const template = result.rows[0];
+    const template = rows[0];
 
     return NextResponse.json({
       id: template.id,

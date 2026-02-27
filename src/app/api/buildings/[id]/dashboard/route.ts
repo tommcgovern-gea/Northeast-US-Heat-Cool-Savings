@@ -4,6 +4,10 @@ import { db } from '@/lib/db/client';
 import { complianceService } from '@/lib/services/complianceService';
 import { sql } from '@/lib/db/client';
 
+function toRows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows ?? []);
+}
+
 export async function GET(
   req: NextRequest,
   props: { params: Promise<{ id: string }> }
@@ -36,7 +40,12 @@ export async function GET(
 
     const days = parseInt(req.nextUrl.searchParams.get('days') || '30');
 
-    const complianceRate = await complianceService.getBuildingComplianceRate(params.id, days);
+    let complianceRate = 0;
+    try {
+      complianceRate = await complianceService.getBuildingComplianceRate(params.id, days);
+    } catch {
+      // Tables may not exist
+    }
 
     const messagesResult = await sql`
       SELECT 
@@ -47,7 +56,7 @@ export async function GET(
       LEFT JOIN photo_uploads p ON p.message_id = m.id
       WHERE m.building_id = ${params.id}
         AND m.message_type IN ('alert', 'daily_summary')
-        AND m.sent_at >= NOW() - INTERVAL '${days} days'
+        AND m.sent_at >= NOW() - (INTERVAL '1 day' * ${days})
       GROUP BY m.id
       ORDER BY m.sent_at DESC
       LIMIT 50
@@ -58,7 +67,7 @@ export async function GET(
       FROM messages
       WHERE building_id = ${params.id}
         AND message_type = 'alert'
-        AND sent_at >= NOW() - INTERVAL '${days} days'
+        AND sent_at >= NOW() - (INTERVAL '1 day' * ${days})
         AND delivered = true
     `;
 
@@ -85,12 +94,18 @@ export async function GET(
       LIMIT 1
     `;
 
-    const latestEnergyReport = energyReportResult.rows.length > 0 ? {
-      month: energyReportResult.rows[0].month,
-      year: energyReportResult.rows[0].year,
-      savingsPercentage: Number(energyReportResult.rows[0].savings_percentage),
-      savingsKBTU: Number(energyReportResult.rows[0].savings_kbtu),
-      pdfUrl: energyReportResult.rows[0].pdf_url,
+    const messagesRows = toRows(messagesResult);
+    const alertsRows = toRows(alertsResult);
+    const recipientsRows = toRows(recipientsResult);
+    const recentUploadsRows = toRows(recentUploadsResult);
+    const energyReportRows = toRows(energyReportResult);
+
+    const latestEnergyReport = energyReportRows.length > 0 ? {
+      month: energyReportRows[0].month,
+      year: energyReportRows[0].year,
+      savingsPercentage: Number(energyReportRows[0].savings_percentage),
+      savingsKBTU: Number(energyReportRows[0].savings_kbtu),
+      pdfUrl: energyReportRows[0].pdf_url,
     } : null;
 
     return NextResponse.json({
@@ -104,20 +119,20 @@ export async function GET(
       },
       stats: {
         complianceRate: Math.round(complianceRate * 10) / 10,
-        totalAlerts: parseInt(alertsResult.rows[0].total_alerts),
-        totalRecipients: parseInt(recipientsResult.rows[0].total_recipients),
+        totalAlerts: parseInt(String(alertsRows[0]?.total_alerts ?? 0), 10),
+        totalRecipients: parseInt(String(recipientsRows[0]?.total_recipients ?? 0), 10),
         days,
       },
-      messages: messagesResult.rows.map(msg => ({
+      messages: messagesRows.map((msg: any) => ({
         id: msg.id,
         messageType: msg.message_type,
         sentAt: msg.sent_at,
         delivered: msg.delivered,
         deliveryStatus: msg.delivery_status,
-        hasUpload: parseInt(msg.upload_count) > 0,
+        hasUpload: parseInt(String(msg.upload_count), 10) > 0,
         lastUpload: msg.last_upload,
       })),
-      recentUploads: recentUploadsResult.rows.map(upload => ({
+      recentUploads: recentUploadsRows.map((upload: any) => ({
         id: upload.id,
         fileName: upload.file_name,
         uploadedAt: upload.uploaded_at,

@@ -2,6 +2,11 @@ import { db } from '@/lib/db/client';
 import { messageService } from './messageService';
 import crypto from 'crypto';
 
+/** Normalize sql result: Neon returns array; pg-style returns { rows }. */
+function toRows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows ?? []);
+}
+
 export interface ComplianceStatus {
   buildingId: string;
   messageId: string;
@@ -18,9 +23,9 @@ export class ComplianceService {
       SELECT * FROM messages WHERE id = ${messageId}
     `;
 
-    if (messageResult.rows.length === 0) return null;
+    if (toRows(messageResult).length === 0) return null;
 
-    const message = messageResult.rows[0];
+    const message = toRows(messageResult)[0];
     const sentAt = message.sent_at ? new Date(message.sent_at) : new Date(message.created_at);
     const now = new Date();
     const hoursSinceMessage = (now.getTime() - sentAt.getTime()) / (1000 * 60 * 60);
@@ -29,8 +34,9 @@ export class ComplianceService {
       SELECT * FROM photo_uploads WHERE message_id = ${messageId} LIMIT 1
     `;
 
-    const hasUpload = uploadResult.rows.length > 0;
-    const upload = uploadResult.rows[0];
+    const uploadRows = toRows(uploadResult);
+    const hasUpload = uploadRows.length > 0;
+    const upload = uploadRows[0];
     const uploadTime = upload ? new Date(upload.uploaded_at).toISOString() : undefined;
 
     const complianceWindow = 2;
@@ -66,14 +72,14 @@ export class ComplianceService {
       ORDER BY m.sent_at ASC
     `;
 
-    const messages = messagesResult.rows;
+    const messages = toRows(messagesResult);
     let warningsSent = 0;
 
     for (const message of messages) {
       const recipientResult = await sql`
         SELECT * FROM recipients WHERE id = ${message.recipient_id}
       `;
-      const recipient = recipientResult.rows[0];
+      const recipient = toRows(recipientResult)[0];
 
       if (!recipient || !recipient.is_active) continue;
 
@@ -122,7 +128,7 @@ export class ComplianceService {
         AND m.delivered = true
     `;
 
-    const messages = messagesResult.rows;
+    const messages = toRows(messagesResult);
     if (messages.length === 0) return 100;
 
     let compliantCount = 0;
@@ -143,16 +149,17 @@ export class ComplianceService {
       SELECT * FROM photo_uploads WHERE id = ${uploadId}
     `;
 
-    if (uploadResult.rows.length === 0) return;
+    const uploadRows = toRows(uploadResult);
+    if (uploadRows.length === 0) return;
 
-    const upload = uploadResult.rows[0];
+    const upload = uploadRows[0];
     const messageResult = await sql`
       SELECT * FROM messages WHERE id = ${upload.message_id}
     `;
 
-    if (messageResult.rows.length === 0) return;
+    if (toRows(messageResult).length === 0) return;
 
-    const message = messageResult.rows[0];
+    const message = toRows(messageResult)[0];
     const sentAt = message.sent_at ? new Date(message.sent_at) : new Date(message.created_at);
     const uploadTime = new Date(upload.uploaded_at);
     const hoursSinceMessage = (uploadTime.getTime() - sentAt.getTime()) / (1000 * 60 * 60);

@@ -3,6 +3,11 @@ import { neon } from '@neondatabase/serverless';
 const client = neon(process.env.POSTGRES_URL || '');
 export const sql = client;
 
+/** Neon returns rows array directly; normalize for .rows or array. */
+export function toRows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows ?? []);
+}
+
 export interface City {
   id: string;
   name: string;
@@ -62,8 +67,7 @@ export interface TemperatureSnapshot {
 export const db = {
   async query(text: string, params?: any[]) {
     try {
-      // Neon client supports query method for parameterized queries
-      const result = await (client as any).query(text, params);
+      const result = await (client as any)(text, params ?? []);
       return result;
     } catch (error) {
       console.error('Database query error:', error);
@@ -75,14 +79,16 @@ export const db = {
     const result = await sql`
       SELECT * FROM cities ORDER BY name
     `;
-    return result.rows as City[];
+    const rows = toRows(result);
+    return (rows ?? []) as City[];
   },
 
   async getCityById(id: string): Promise<City | null> {
     const result = await sql`
       SELECT * FROM cities WHERE id = ${id}
     `;
-    return result.rows[0] as City | null;
+    const rows = toRows(result);
+    return (rows[0] as City) ?? null;
   },
 
   async createCity(data: Omit<City, 'id' | 'created_at' | 'updated_at'>): Promise<City> {
@@ -95,7 +101,7 @@ export const db = {
         ${data.alert_temp_delta}, ${data.alert_window_hours}, ${data.is_active}
       ) RETURNING *
     `;
-    return result.rows[0] as City;
+    return toRows(result)[0] as City;
   },
 
   async updateCity(id: string, data: Partial<Omit<City, 'id' | 'created_at' | 'updated_at'>>): Promise<City | null> {
@@ -131,9 +137,10 @@ export const db = {
 
     values.push(id);
     const query = `UPDATE cities SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
-    
-    const result = await (client as any).query(query, values);
-    return result.rows[0] as City;
+
+    const result = await (client as any)(query, values);
+    const rows = toRows(result);
+    return (rows[0] as City) ?? null;
   },
 
   async getBuildings(cityId?: string, buildingId?: string): Promise<Building[]> {
@@ -141,20 +148,20 @@ export const db = {
       const result = await sql`
         SELECT * FROM buildings WHERE id = ${buildingId}
       `;
-      return result.rows as Building[];
+      return (toRows(result) ?? []) as Building[];
     }
-    
+
     if (cityId) {
       const result = await sql`
         SELECT * FROM buildings WHERE city_id = ${cityId} ORDER BY name
       `;
-      return result.rows as Building[];
+      return (toRows(result) ?? []) as Building[];
     }
 
     const result = await sql`
       SELECT * FROM buildings ORDER BY name
     `;
-    return result.rows as Building[];
+    return (toRows(result) ?? []) as Building[];
   },
 
   async createBuilding(data: Omit<Building, 'id' | 'created_at' | 'updated_at'>): Promise<Building> {
@@ -163,7 +170,7 @@ export const db = {
       VALUES (${data.city_id}, ${data.name}, ${data.address}, ${data.is_active}, ${data.is_paused})
       RETURNING *
     `;
-    return result.rows[0] as Building;
+    return toRows(result)[0] as Building;
   },
 
   async getRecipients(buildingId: string, includeInactive: boolean = false): Promise<Recipient[]> {
@@ -172,20 +179,21 @@ export const db = {
         SELECT * FROM recipients WHERE building_id = ${buildingId}
         ORDER BY created_at
       `;
-      return result as Recipient[];
+      return toRows(result) as Recipient[];
     }
     const result = await sql`
       SELECT * FROM recipients WHERE building_id = ${buildingId} AND is_active = true
       ORDER BY created_at
     `;
-    return result as Recipient[];
+    return toRows(result) as Recipient[];
   },
 
   async getRecipientById(id: string): Promise<Recipient | null> {
     const result = await sql`
       SELECT * FROM recipients WHERE id = ${id}
     `;
-    return result[0] ? (result[0] as Recipient) : null;
+    const rows = toRows(result);
+    return (rows[0] as Recipient) ?? null;
   },
 
   async createRecipient(data: Omit<Recipient, 'id' | 'created_at' | 'updated_at'>): Promise<Recipient> {
@@ -194,7 +202,7 @@ export const db = {
       VALUES (${data.building_id}, ${data.name}, ${data.email}, ${data.phone}, ${data.preference}, ${data.is_active})
       RETURNING *
     `;
-    return result[0] as Recipient;
+    return toRows(result)[0] as Recipient;
   },
 
   async updateRecipient(id: string, data: Partial<Omit<Recipient, 'id' | 'created_at' | 'updated_at' | 'building_id'>>): Promise<Recipient | null> {
@@ -228,15 +236,16 @@ export const db = {
     values.push(id);
     const query = `UPDATE recipients SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
 
-    const result = await (client as any).query(query, values);
-    return result.rows[0] as Recipient;
+    const result = await (client as any)(query, values);
+    const rows = toRows(result);
+    return (rows[0] as Recipient) ?? null;
   },
 
   async deleteRecipient(id: string): Promise<boolean> {
     const result = await sql`
       DELETE FROM recipients WHERE id = ${id} RETURNING id
     `;
-    return result.length > 0;
+    return toRows(result).length > 0;
   },
 
   async createAlertLog(data: Omit<AlertLog, 'id' | 'triggered_at'>): Promise<AlertLog> {
@@ -251,14 +260,14 @@ export const db = {
       )
       RETURNING *
     `;
-    return result.rows[0] as AlertLog;
+    return toRows(result)[0] as AlertLog;
   },
 
   async getUnprocessedAlerts(): Promise<AlertLog[]> {
     const result = await sql`
       SELECT * FROM alert_logs WHERE processed = false ORDER BY triggered_at
     `;
-    return result.rows as AlertLog[];
+    return toRows(result) as AlertLog[];
   },
 
   async markAlertProcessed(id: string): Promise<void> {
@@ -278,7 +287,7 @@ export const db = {
       )
       RETURNING *
     `;
-    return result.rows[0] as TemperatureSnapshot;
+    return toRows(result)[0] as TemperatureSnapshot;
   },
 
   async getRecentTemperatureSnapshots(cityId: string, hours: number = 24): Promise<TemperatureSnapshot[]> {
@@ -288,14 +297,15 @@ export const db = {
         AND recorded_at >= NOW() - (INTERVAL '1 hour' * ${hours})
       ORDER BY recorded_at DESC
     `;
-    return result as TemperatureSnapshot[];
+    return toRows(result) as TemperatureSnapshot[];
   },
 
   async getUserByEmail(email: string): Promise<any | null> {
     const result = await sql`
       SELECT * FROM users WHERE email = ${email}
     `;
-    return result.rows[0] || null;
+    const rows = toRows(result);
+    return rows[0] ?? null;
   },
 
   async createUser(data: {
@@ -309,6 +319,6 @@ export const db = {
       VALUES (${data.email}, ${data.password_hash}, ${data.role}, ${data.building_id || null})
       RETURNING *
     `;
-    return result.rows[0];
+    return toRows(result)[0];
   },
 };

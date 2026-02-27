@@ -8,23 +8,28 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "echo 'Run: psql $POSTGRES_URL < src/lib/db/schema.sql'",
-    "db:seed": "tsx src/lib/db/seed.ts"
+    "db:seed": "tsx src/lib/db/seed.ts",
+    "test:ms1": "npx tsx scripts/test-milestone1.ts",
+    "test:alert-logic": "npx tsx scripts/test-alert-logic.ts",
+    "check-city-config": "npx tsx scripts/check-city-config.ts",
+    "generate:ms1-docx": "npx tsx scripts/generate-milestone1-docx.ts",
+    "generate:ms1-html": "npx tsx scripts/generate-milestone1-html.ts"
   },
   "dependencies": {
-    "@vercel/blob": "^0.25.0",
     "@neondatabase/serverless": "^0.9.0",
+    "@prisma/client": "^6.19.2",
     "@sendgrid/mail": "^8.1.3",
+    "@vercel/blob": "^0.25.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^17.3.1",
     "jsonwebtoken": "^9.0.3",
     "next": "16.1.6",
+    "pdfkit": "^0.15.0",
+    "prisma": "^6.19.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "twilio": "^5.3.5",
-    "xlsx": "^0.18.5",
-    "bcryptjs": "^2.4.3",
-    "pdfkit": "^0.15.0",
-    "@prisma/client": "^6.19.2",
-    "dotenv": "^17.3.1",
-    "prisma": "^6.19.2"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -34,8 +39,11 @@
     "@types/pdfkit": "^0.13.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "docx": "^9.6.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.0.0",
+    "marked": "^17.0.3",
+    "md-to-pdf": "^5.2.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

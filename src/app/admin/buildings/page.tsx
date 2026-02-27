@@ -199,6 +199,7 @@ export default function BuildingsPage() {
     }
   };
 
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">

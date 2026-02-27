@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import { sql } from '@/lib/db/client';
 
+function toRows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows ?? []);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -61,17 +65,21 @@ export async function GET(req: NextRequest) {
     }
 
     const result = await query;
+    const rows = toRows(result);
 
     const totalResult = buildingId
       ? await sql`SELECT COUNT(*) as total FROM messages WHERE building_id = ${buildingId}`
       : await sql`SELECT COUNT(*) as total FROM messages`;
 
+    const totalRows = toRows(totalResult);
+    const totalCount = totalRows[0]?.total ?? 0;
+
     return NextResponse.json({
-      messages: result.rows.map(msg => ({
+      messages: rows.map((msg: any) => ({
         id: msg.id,
         messageType: msg.message_type,
         channel: msg.channel,
-        content: msg.content.substring(0, 200) + (msg.content.length > 200 ? '...' : ''),
+        content: msg.content ? (String(msg.content).substring(0, 200) + (String(msg.content).length > 200 ? '...' : '')) : '',
         buildingName: msg.building_name,
         recipientName: msg.recipient_name,
         email: msg.email,
@@ -79,10 +87,10 @@ export async function GET(req: NextRequest) {
         sentAt: msg.sent_at,
         delivered: msg.delivered,
         deliveryStatus: msg.delivery_status,
-        hasUpload: parseInt(msg.upload_count) > 0,
+        hasUpload: parseInt(String(msg.upload_count), 10) > 0,
         createdAt: msg.created_at,
       })),
-      total: parseInt(totalResult.rows[0].total),
+      total: parseInt(String(totalCount), 10),
       limit,
       offset,
     });

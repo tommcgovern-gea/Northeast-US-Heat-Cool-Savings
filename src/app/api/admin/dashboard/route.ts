@@ -4,6 +4,10 @@ import { db } from '@/lib/db/client';
 import { complianceService } from '@/lib/services/complianceService';
 import { sql } from '@/lib/db/client';
 
+function toRows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows ?? []);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -28,26 +32,37 @@ export async function GET(req: NextRequest) {
     const totalMessagesResult = await sql`
       SELECT COUNT(*) as total
       FROM messages
-      WHERE sent_at >= NOW() - INTERVAL '${days} days'
+      WHERE sent_at >= NOW() - (INTERVAL '1 day' * ${days})
         AND delivered = true
     `;
+    const totalMessagesRows = toRows(totalMessagesResult);
+    const totalMessages = parseInt(String(totalMessagesRows[0]?.total ?? 0), 10);
 
     const totalAlertsResult = await sql`
       SELECT COUNT(*) as total
       FROM alert_logs
-      WHERE triggered_at >= NOW() - INTERVAL '${days} days'
+      WHERE triggered_at >= NOW() - (INTERVAL '1 day' * ${days})
     `;
+    const totalAlertsRows = toRows(totalAlertsResult);
+    const totalAlerts = parseInt(String(totalAlertsRows[0]?.total ?? 0), 10);
 
     const failedMessagesResult = await sql`
       SELECT COUNT(*) as total
       FROM messages
-      WHERE sent_at >= NOW() - INTERVAL '${days} days'
+      WHERE sent_at >= NOW() - (INTERVAL '1 day' * ${days})
         AND (delivered = false OR delivery_status = 'failed')
     `;
+    const failedMessagesRows = toRows(failedMessagesResult);
+    const failedMessages = parseInt(String(failedMessagesRows[0]?.total ?? 0), 10);
 
     const complianceData = await Promise.all(
       activeBuildings.map(async (building) => {
-        const rate = await complianceService.getBuildingComplianceRate(building.id, days);
+        let rate = 0;
+        try {
+          rate = await complianceService.getBuildingComplianceRate(building.id, days);
+        } catch {
+          // Tables may not exist
+        }
         return {
           buildingId: building.id,
           buildingName: building.name,
@@ -95,18 +110,25 @@ export async function GET(req: NextRequest) {
           SELECT COUNT(*) as total
           FROM alert_logs
           WHERE city_id = ${city.id}
-            AND triggered_at >= NOW() - INTERVAL '${days} days'
+            AND triggered_at >= NOW() - (INTERVAL '1 day' * ${days})
         `;
+        const cityAlertsRows = toRows(cityAlertsResult);
+        const cityTotalAlerts = parseInt(String(cityAlertsRows[0]?.total ?? 0), 10);
 
         return {
           cityId: city.id,
           cityName: city.name,
           buildingCount: cityBuildings.length,
           activeBuildingCount: cityBuildings.filter(b => b.is_active && !b.is_paused).length,
-          totalAlerts: parseInt(cityAlertsResult.rows[0].total),
+          totalAlerts: cityTotalAlerts,
         };
       })
     );
+
+    const recentAlertsRows = toRows(recentAlertsResult);
+    const energyReportsRows = toRows(energyReportsResult);
+    const totalEnergyRows = toRows(totalEnergySavingsResult);
+    const energyFirst = totalEnergyRows[0];
 
     return NextResponse.json({
       overview: {
@@ -114,22 +136,22 @@ export async function GET(req: NextRequest) {
         totalBuildings: buildings.length,
         activeBuildings: activeBuildings.length,
         pausedBuildings: pausedBuildings.length,
-        totalMessages: parseInt(totalMessagesResult.rows[0].total),
-        totalAlerts: parseInt(totalAlertsResult.rows[0].total),
-        failedMessages: parseInt(failedMessagesResult.rows[0].total),
+        totalMessages,
+        totalAlerts,
+        failedMessages,
         overallComplianceRate: Math.round(overallComplianceRate * 10) / 10,
         days,
       },
       cityStats,
       buildingCompliance: complianceData,
-      recentAlerts: recentAlertsResult.rows.map(alert => ({
+      recentAlerts: recentAlertsRows.map((alert: any) => ({
         id: alert.id,
         cityName: alert.city_name,
         alertType: alert.alert_type,
         triggeredAt: alert.triggered_at,
         processed: alert.processed,
       })),
-      energyReports: energyReportsResult.rows.map(report => ({
+      energyReports: energyReportsRows.map((report: any) => ({
         id: report.id,
         buildingName: report.building_name,
         month: report.month,
@@ -140,12 +162,8 @@ export async function GET(req: NextRequest) {
         generatedAt: report.generated_at,
       })),
       energySavings: {
-        totalSavingsKBTU: totalEnergySavingsResult.rows[0].total_savings 
-          ? Number(totalEnergySavingsResult.rows[0].total_savings) 
-          : 0,
-        avgSavingsPercentage: totalEnergySavingsResult.rows[0].avg_savings_percentage
-          ? Number(totalEnergySavingsResult.rows[0].avg_savings_percentage)
-          : 0,
+        totalSavingsKBTU: energyFirst?.total_savings != null ? Number(energyFirst.total_savings) : 0,
+        avgSavingsPercentage: energyFirst?.avg_savings_percentage != null ? Number(energyFirst.avg_savings_percentage) : 0,
       },
     });
   } catch (error) {
