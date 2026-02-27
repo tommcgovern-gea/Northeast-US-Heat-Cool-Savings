@@ -9,11 +9,7 @@
     "lint": "eslint",
     "db:migrate": "echo 'Run: psql $POSTGRES_URL < src/lib/db/schema.sql'",
     "db:seed": "tsx src/lib/db/seed.ts",
-    "test:ms1": "npx tsx scripts/test-milestone1.ts",
-    "test:alert-logic": "npx tsx scripts/test-alert-logic.ts",
-    "check-city-config": "npx tsx scripts/check-city-config.ts",
-    "generate:ms1-docx": "npx tsx scripts/generate-milestone1-docx.ts",
-    "generate:ms1-html": "npx tsx scripts/generate-milestone1-html.ts"
+    "test:ms1": "npx tsx scripts/test-milestone1.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.9.0",
