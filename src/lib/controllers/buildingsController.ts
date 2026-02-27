@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mockBuildings } from "@/lib/mock-buildings";
+import { db, sql } from "@/lib/db/client";
 import { verifyToken, TokenPayload } from "@/lib/auth";
+import { complianceService } from "@/lib/services/complianceService";
 
 export const getBuildings = async (req: NextRequest) => {
   try {
@@ -16,29 +17,45 @@ export const getBuildings = async (req: NextRequest) => {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 });
     }
 
-    let buildings = mockBuildings;
+    let buildings: any[];
 
-    // Building user sees only their own building
-    if (user.role === "BUILDING") {
-      buildings = buildings.filter((b) => b.id === user.buildingId);
-    } else if (user.role !== "ADMIN" && user.role !== "STAFF") {
-        return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    if (user.role === "BUILDING" && user.buildingId) {
+      buildings = await db.getBuildings(undefined, user.buildingId);
+    } else if (user.role === "ADMIN" || user.role === "STAFF") {
+      buildings = await db.getBuildings();
+    } else {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const responseData = buildings.map(b => ({
-      id: b.id,
-      name: b.name,
-      address: b.address,
-      cityId: b.cityId,
-      cityName: b.cityName,
-      isActive: b.isActive,
-      isPaused: b.isPaused,
-      recipientCount: b.recipientCount,
-      complianceRate: b.complianceRate,
-    }));
+    const list = Array.isArray(buildings) ? buildings : [];
+    const responseData = await Promise.all(
+      list.map(async (b) => {
+        const recipients = await db.getRecipients(b.id);
+        let complianceRate = 0;
+        try {
+          complianceRate = await complianceService.getBuildingComplianceRate(b.id, 30);
+        } catch {
+          // Tables may not exist yet; use 0
+        }
+        const city = await db.getCityById(b.city_id);
+
+        return {
+          id: b.id,
+          name: b.name,
+          address: b.address,
+          cityId: b.city_id,
+          cityName: city?.name || 'Unknown',
+          isActive: b.is_active,
+          isPaused: b.is_paused,
+          recipientCount: recipients.length,
+          complianceRate: Math.round(complianceRate * 10) / 10,
+        };
+      })
+    );
 
     return NextResponse.json(responseData);
   } catch (error) {
+    console.error("Error fetching buildings:", error);
     return NextResponse.json({ message: "Error fetching buildings" }, { status: 500 });
   }
 };
@@ -64,32 +81,22 @@ export const createBuilding = async (req: NextRequest) => {
         return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
     }
 
-    const newBuilding = {
-      id: Date.now().toString(),
+    const newBuilding = await db.createBuilding({
+      city_id: body.cityId,
       name: body.name,
       address: body.address,
-      cityId: body.cityId,
-      cityName: "Unknown", // Ideally we'd look up the city name from mockCities
-      isActive: true,
-      isPaused: false,
-      recipientCount: 0,
-      complianceRate: 0,
-      createdAt: new Date().toISOString(),
-      recipients: [],
-      recentMessages: [],
-      recentUploads: []
-    };
-
-    mockBuildings.push(newBuilding);
+      is_active: true,
+      is_paused: false,
+    });
 
     return NextResponse.json({
         id: newBuilding.id,
         name: newBuilding.name,
         address: newBuilding.address,
-        cityId: newBuilding.cityId,
-        isActive: newBuilding.isActive,
-        isPaused: newBuilding.isPaused,
-        createdAt: newBuilding.createdAt
+        cityId: newBuilding.city_id,
+        isActive: newBuilding.is_active,
+        isPaused: newBuilding.is_paused,
+        createdAt: newBuilding.created_at
     }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ message: "Error creating building" }, { status: 500 });
@@ -106,29 +113,46 @@ export const getBuildingById = async (req: NextRequest, id: string) => {
     const token = authHeader.split(" ")[1];
     const user = verifyToken(token) as TokenPayload;
 
-    const building = mockBuildings.find((b) => b.id === id);
+    if (!user) {
+      return NextResponse.json({ message: "Invalid token" }, { status: 401 });
+    }
 
-    if (!building) {
+    const buildings = await db.getBuildings(undefined, id);
+    
+    if (buildings.length === 0) {
       return NextResponse.json({ message: "Building not found" }, { status: 404 });
     }
 
-    // Apply authorization check to ensure BUILDING users can't access other buildings
+    const building = buildings[0];
+
     if (user.role === "BUILDING" && user.buildingId !== building.id) {
-       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
+
+    const city = await db.getCityById(building.city_id);
+    const recipients = await db.getRecipients(building.id);
+    const complianceRate = await complianceService.getBuildingComplianceRate(building.id, 30);
 
     return NextResponse.json({
         id: building.id,
         name: building.name,
         address: building.address,
-        city: building.city,
-        recipients: building.recipients || [],
-        recentMessages: building.recentMessages || [],
-        recentUploads: building.recentUploads || [],
-        complianceRate: building.complianceRate,
-        isPaused: building.isPaused
+        cityId: building.city_id,
+        cityName: city?.name || 'Unknown',
+        recipients: recipients.map(r => ({
+          id: r.id,
+          name: r.name,
+          email: r.email,
+          phone: r.phone,
+          preference: r.preference,
+          isActive: r.is_active,
+        })),
+        complianceRate: Math.round(complianceRate * 10) / 10,
+        isPaused: building.is_paused,
+        isActive: building.is_active,
     });
   } catch (error) {
+    console.error("Error fetching building details:", error);
     return NextResponse.json({ message: "Error fetching building details" }, { status: 500 });
   }
 };
@@ -148,27 +172,89 @@ export const updateBuilding = async (req: NextRequest, id: string) => {
     }
 
     const body = await req.json();
-    const building = mockBuildings.find((b) => b.id === id);
+    const { sql } = await import('@/lib/db/client');
 
-    if (!building) {
+    const updateData: any = {};
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.address !== undefined) updateData.address = body.address;
+    if (body.isPaused !== undefined) updateData.is_paused = body.isPaused;
+    if (body.isActive !== undefined) updateData.is_active = body.isActive;
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    Object.entries(updateData).forEach(([key, value]) => {
+      updates.push(`${key} = $${paramIndex}`);
+      values.push(value);
+      paramIndex++;
+    });
+
+    if (updates.length === 0) {
+      const buildings = await db.getBuildings(undefined, id);
+      if (buildings.length === 0) {
+        return NextResponse.json({ message: "Building not found" }, { status: 404 });
+      }
+      const building = buildings[0];
+      return NextResponse.json({
+        id: building.id,
+        name: building.name,
+        address: building.address,
+        isPaused: building.is_paused,
+        isActive: building.is_active,
+      });
+    }
+
+    values.push(id);
+    updates.push(`updated_at = NOW()`);
+    const query = `UPDATE buildings SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+    
+const result = await (sql as any)(query, values);
+    const rows = Array.isArray(result) ? result : (result?.rows ?? []);
+
+    if (rows.length === 0) {
       return NextResponse.json({ message: "Building not found" }, { status: 404 });
     }
 
-    building.name = body.name ?? building.name;
-    building.address = body.address ?? building.address;
-    if (body.isPaused !== undefined) building.isPaused = body.isPaused;
-    if (body.isActive !== undefined) building.isActive = body.isActive;
-    building.updatedAt = new Date().toISOString();
+    const building = rows[0];
 
     return NextResponse.json({
         id: building.id,
         name: building.name,
         address: building.address,
-        isPaused: building.isPaused,
-        isActive: building.isActive,
-        updatedAt: building.updatedAt
+        isPaused: building.is_paused,
+        isActive: building.is_active,
+        updatedAt: building.updated_at
     });
   } catch (error) {
+    console.error("Error updating building:", error);
     return NextResponse.json({ message: "Error updating building" }, { status: 500 });
+  }
+};
+
+export const deleteBuilding = async (req: NextRequest, id: string) => {
+  try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.split(" ")[1];
+    const user = verifyToken(token) as TokenPayload;
+
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    const result = await sql`DELETE FROM buildings WHERE id = ${id} RETURNING id`;
+
+    if (result.length === 0) {
+      return NextResponse.json({ message: "Building not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting building:", error);
+    return NextResponse.json({ message: "Error deleting building" }, { status: 500 });
   }
 };

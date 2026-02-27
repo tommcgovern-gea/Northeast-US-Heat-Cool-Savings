@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mockCities } from "@/lib/mock-cities";
+import { db } from "@/lib/db/client";
 import { verifyToken, TokenPayload } from "@/lib/auth";
 
 // NWS API base
@@ -28,6 +28,8 @@ export async function fetchNWSHourlyForecast(
         next: { revalidate: 0 }, // no cache
       }
     );
+
+    console.log(`[DEBUG] NWS API Call: ${res.url} - Status: ${res.status}`);
 
     if (!res.ok) {
       console.error(`NWS API error: ${res.status} ${res.statusText}`);
@@ -64,7 +66,6 @@ function getMockHourlyForecast(): { time: string; tempF: number }[] {
   });
 }
 
-// GET /api/weather/forecast/:cityId — Auth required
 export const getForecast = async (req: NextRequest, cityId: string) => {
   try {
     const authHeader = req.headers.get("authorization");
@@ -79,23 +80,24 @@ export const getForecast = async (req: NextRequest, cityId: string) => {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 });
     }
 
-    const city = mockCities.find((c) => c.id === cityId);
+    const city = await db.getCityById(cityId);
     if (!city) {
       return NextResponse.json({ message: "City not found" }, { status: 404 });
     }
 
     const forecast = await fetchNWSHourlyForecast(
-      city.nwsOffice,
-      city.nwsGridX,
-      city.nwsGridY
+      city.nws_office,
+      city.nws_grid_x,
+      city.nws_grid_y
     );
 
     return NextResponse.json({
       cityId: city.id,
-      office: city.nwsOffice,
+      office: city.nws_office,
       forecast,
     });
   } catch (error) {
+    console.error("Error fetching forecast:", error);
     return NextResponse.json({ message: "Error fetching forecast" }, { status: 500 });
   }
 };
