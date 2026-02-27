@@ -6,7 +6,7 @@ export interface AlertCheckResult {
   temperatureChange: number;
   timeWindow: number;
   currentTemp: number;
-  previousTemp: number;
+  futureTemp: number;
   timestamp: string;
 }
 
@@ -51,15 +51,14 @@ export class AlertService {
     const temperatureChange = Math.abs(futureTemp - currentTemp);
 
     if (temperatureChange >= config.alertTempDelta) {
-      const previousTemp = forecast[0].tempF;
       const futureTime = new Date(forecast[windowEndIndex].time);
 
       return {
         shouldAlert: true,
         temperatureChange,
         timeWindow: config.alertWindowHours,
-        currentTemp: previousTemp,
-        previousTemp: currentTemp,
+        currentTemp: currentTemp,
+        futureTemp: futureTemp,
         timestamp: futureTime.toISOString(),
       };
     }
@@ -69,7 +68,7 @@ export class AlertService {
       temperatureChange,
       timeWindow: config.alertWindowHours,
       currentTemp,
-      previousTemp: currentTemp,
+      futureTemp: futureTemp,
       timestamp: new Date().toISOString(),
     };
   }
@@ -122,12 +121,17 @@ export class AlertService {
       const city = await db.getCityById(cityId);
       if (!city) return null;
 
+      console.log(`Alert triggered for city ${cityId}:`);
+      console.log(`- Current Temp: ${result.currentTemp}°F`);
+      console.log(`- Future Temp:  ${result.futureTemp}°F (at window end)`);
+      console.log(`- Change:       ${result.temperatureChange.toFixed(1)}°F`);
+
       return await db.createAlertLog({
         city_id: cityId,
         alert_type: 'sudden_fluctuation',
         temperature_data: {
           currentTemp: result.currentTemp,
-          futureTemp: result.previousTemp,
+          futureTemp: result.futureTemp,
           change: result.temperatureChange,
           timeWindow: result.timeWindow,
         },

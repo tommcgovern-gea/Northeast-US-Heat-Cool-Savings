@@ -166,12 +166,26 @@ export const db = {
     return result.rows[0] as Building;
   },
 
-  async getRecipients(buildingId: string): Promise<Recipient[]> {
+  async getRecipients(buildingId: string, includeInactive: boolean = false): Promise<Recipient[]> {
+    if (includeInactive) {
+      const result = await sql`
+        SELECT * FROM recipients WHERE building_id = ${buildingId}
+        ORDER BY created_at
+      `;
+      return result as Recipient[];
+    }
     const result = await sql`
       SELECT * FROM recipients WHERE building_id = ${buildingId} AND is_active = true
       ORDER BY created_at
     `;
-    return result.rows as Recipient[];
+    return result as Recipient[];
+  },
+
+  async getRecipientById(id: string): Promise<Recipient | null> {
+    const result = await sql`
+      SELECT * FROM recipients WHERE id = ${id}
+    `;
+    return result[0] ? (result[0] as Recipient) : null;
   },
 
   async createRecipient(data: Omit<Recipient, 'id' | 'created_at' | 'updated_at'>): Promise<Recipient> {
@@ -180,7 +194,49 @@ export const db = {
       VALUES (${data.building_id}, ${data.name}, ${data.email}, ${data.phone}, ${data.preference}, ${data.is_active})
       RETURNING *
     `;
+    return result[0] as Recipient;
+  },
+
+  async updateRecipient(id: string, data: Partial<Omit<Recipient, 'id' | 'created_at' | 'updated_at' | 'building_id'>>): Promise<Recipient | null> {
+    const recipient = await this.getRecipientById(id);
+    if (!recipient) return null;
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    const fieldMap: Record<string, string> = {
+      name: 'name',
+      email: 'email',
+      phone: 'phone',
+      preference: 'preference',
+      is_active: 'is_active',
+    };
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && fieldMap[key]) {
+        updates.push(`${fieldMap[key]} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    });
+
+    if (updates.length === 0) {
+      return recipient;
+    }
+
+    values.push(id);
+    const query = `UPDATE recipients SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
+
+    const result = await (client as any).query(query, values);
     return result.rows[0] as Recipient;
+  },
+
+  async deleteRecipient(id: string): Promise<boolean> {
+    const result = await sql`
+      DELETE FROM recipients WHERE id = ${id} RETURNING id
+    `;
+    return result.length > 0;
   },
 
   async createAlertLog(data: Omit<AlertLog, 'id' | 'triggered_at'>): Promise<AlertLog> {
@@ -229,10 +285,10 @@ export const db = {
     const result = await sql`
       SELECT * FROM temperature_snapshots
       WHERE city_id = ${cityId}
-        AND recorded_at >= NOW() - INTERVAL '${hours} hours'
+        AND recorded_at >= NOW() - (INTERVAL '1 hour' * ${hours})
       ORDER BY recorded_at DESC
     `;
-    return result.rows as TemperatureSnapshot[];
+    return result as TemperatureSnapshot[];
   },
 
   async getUserByEmail(email: string): Promise<any | null> {

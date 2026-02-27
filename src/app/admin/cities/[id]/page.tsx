@@ -20,7 +20,7 @@ interface City {
 export default function CityDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const cityId = params.id as string;
+  const cityId = params?.id as string;
   const [city, setCity] = useState<City | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -126,10 +126,20 @@ export default function CityDetailPage() {
     );
   }
 
-  if (!city) {
+  if (error || !city) {
     return (
-      <div className="rounded-md bg-red-50 p-4">
-        <h3 className="text-sm font-medium text-red-800">City not found</h3>
+      <div className="p-4">
+        <Link
+          href="/admin/cities"
+          className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-block"
+        >
+          ← Back to Cities
+        </Link>
+        <div className="rounded-md bg-red-50 p-4">
+          <h3 className="text-sm font-medium text-red-800">
+            {error || "City not found"}
+          </h3>
+        </div>
       </div>
     );
   }
@@ -165,7 +175,7 @@ export default function CityDetailPage() {
               <input
                 type="text"
                 required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -181,7 +191,7 @@ export default function CityDetailPage() {
                 type="text"
                 required
                 maxLength={2}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                 value={formData.state}
                 onChange={(e) =>
                   setFormData({
@@ -199,7 +209,7 @@ export default function CityDetailPage() {
               <input
                 type="text"
                 required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                 value={formData.nwsOffice}
                 onChange={(e) =>
                   setFormData({
@@ -218,7 +228,7 @@ export default function CityDetailPage() {
                 <input
                   type="number"
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                   value={formData.nwsGridX}
                   onChange={(e) =>
                     setFormData({ ...formData, nwsGridX: e.target.value })
@@ -233,7 +243,7 @@ export default function CityDetailPage() {
                 <input
                   type="number"
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                   value={formData.nwsGridY}
                   onChange={(e) =>
                     setFormData({ ...formData, nwsGridY: e.target.value })
@@ -250,7 +260,7 @@ export default function CityDetailPage() {
                 type="number"
                 step="0.1"
                 required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                 value={formData.alertTempDelta}
                 onChange={(e) =>
                   setFormData({ ...formData, alertTempDelta: e.target.value })
@@ -265,7 +275,7 @@ export default function CityDetailPage() {
               <input
                 type="number"
                 required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                 value={formData.alertWindowHours}
                 onChange={(e) =>
                   setFormData({ ...formData, alertWindowHours: e.target.value })

@@ -32,9 +32,48 @@ export default function CitiesPage() {
     alertWindowHours: "6",
   });
 
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+
   useEffect(() => {
     fetchCities();
   }, []);
+
+  const handleCitySearch = async (query: string) => {
+    setFormData(prev => ({ ...prev, name: query }));
+    if (query.length < 1) {
+      setSuggestions([]);
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/admin/cities/search?q=${encodeURIComponent(query)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestions(data);
+      }
+    } catch (e) {
+      console.error("Search error:", e);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectSuggestion = (s: any) => {
+    setFormData({
+      ...formData,
+      name: s.name,
+      state: s.state,
+      nwsOffice: s.nwsOffice,
+      nwsGridX: s.nwsGridX.toString(),
+      nwsGridY: s.nwsGridY.toString(),
+    });
+    setSuggestions([]);
+  };
 
   const fetchCities = async () => {
     try {
@@ -98,6 +137,23 @@ export default function CitiesPage() {
         alertTempDelta: "5",
         alertWindowHours: "6",
       });
+      fetchCities();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to (deactivate) this city?")) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/cities/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error("Failed to delete city");
       fetchCities();
     } catch (err: any) {
       setError(err.message);
@@ -182,22 +238,27 @@ export default function CitiesPage() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      city.isActive
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}
+                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${city.isActive
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-800"
+                      }`}
                   >
                     {city.isActive ? "Active" : "Inactive"}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                   <Link
                     href={`/admin/cities/${city.id}`}
                     className="text-blue-600 hover:text-blue-900"
                   >
                     Edit
                   </Link>
+                  <button
+                    onClick={() => handleDelete(city.id)}
+                    className="text-red-600 hover:text-red-900"
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
@@ -210,9 +271,14 @@ export default function CitiesPage() {
         <div className="fixed z-10 inset-0 overflow-y-auto">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div
-              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-              onClick={() => setShowCreateModal(false)}
+              className="absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+              onClick={() => {
+                setShowCreateModal(false);
+                setSuggestions([]);
+              }}
             ></div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
             <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
               <form onSubmit={handleCreate}>
@@ -221,39 +287,56 @@ export default function CitiesPage() {
                     Create New City
                   </h3>
                   <div className="space-y-4">
-                    <div>
+                    <div className="relative">
                       <label className="block text-sm font-medium text-gray-700">
-                        City Name
+                        Search City
                       </label>
                       <input
                         type="text"
                         required
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Type to search (e.g. Buffalo, NY)"
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                         value={formData.name}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
+                        onChange={(e) => handleCitySearch(e.target.value)}
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        State
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        maxLength={2}
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        value={formData.state}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            state: e.target.value.toUpperCase(),
-                          })
-                        }
-                      />
+                      {searching && (
+                        <div className="absolute right-3 top-9">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        </div>
+                      )}
+                      {suggestions.length > 0 && (
+                        <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
+                          {suggestions.map((s, idx) => (
+                            <div
+                              key={idx}
+                              className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-600 hover:text-white text-black"
+                              onClick={() => selectSuggestion(s)}
+                            >
+                              {s.displayName}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          State
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={2}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
+                          value={formData.state}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              state: e.target.value.toUpperCase(),
+                            })
+                          }
+                        />
+                      </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700">
                           NWS Office
@@ -261,7 +344,7 @@ export default function CitiesPage() {
                         <input
                           type="text"
                           required
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                           value={formData.nwsOffice}
                           onChange={(e) =>
                             setFormData({
@@ -271,6 +354,8 @@ export default function CitiesPage() {
                           }
                         />
                       </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700">
                           Grid X
@@ -278,27 +363,27 @@ export default function CitiesPage() {
                         <input
                           type="number"
                           required
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                           value={formData.nwsGridX}
                           onChange={(e) =>
                             setFormData({ ...formData, nwsGridX: e.target.value })
                           }
                         />
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Grid Y
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        value={formData.nwsGridY}
-                        onChange={(e) =>
-                          setFormData({ ...formData, nwsGridY: e.target.value })
-                        }
-                      />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Grid Y
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
+                          value={formData.nwsGridY}
+                          onChange={(e) =>
+                            setFormData({ ...formData, nwsGridY: e.target.value })
+                          }
+                        />
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -309,7 +394,7 @@ export default function CitiesPage() {
                           type="number"
                           step="0.1"
                           required
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                           value={formData.alertTempDelta}
                           onChange={(e) =>
                             setFormData({
@@ -326,7 +411,7 @@ export default function CitiesPage() {
                         <input
                           type="number"
                           required
-                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                           value={formData.alertWindowHours}
                           onChange={(e) =>
                             setFormData({
@@ -348,7 +433,10 @@ export default function CitiesPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowCreateModal(false)}
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setSuggestions([]);
+                    }}
                     className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                   >
                     Cancel

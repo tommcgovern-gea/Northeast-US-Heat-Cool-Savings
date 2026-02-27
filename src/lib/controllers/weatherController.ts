@@ -29,6 +29,8 @@ export async function fetchNWSHourlyForecast(
       }
     );
 
+    console.log(`[DEBUG] NWS API Call: ${res.url} - Status: ${res.status}`);
+
     if (!res.ok) {
       console.error(`NWS API error: ${res.status} ${res.statusText}`);
       return getMockHourlyForecast();

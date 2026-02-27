@@ -225,3 +225,30 @@ export const updateBuilding = async (req: NextRequest, id: string) => {
     return NextResponse.json({ message: "Error updating building" }, { status: 500 });
   }
 };
+
+export const deleteBuilding = async (req: NextRequest, id: string) => {
+  try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.split(" ")[1];
+    const user = verifyToken(token) as TokenPayload;
+
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    const result = await sql`DELETE FROM buildings WHERE id = ${id} RETURNING id`;
+
+    if (result.length === 0) {
+      return NextResponse.json({ message: "Building not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting building:", error);
+    return NextResponse.json({ message: "Error deleting building" }, { status: 500 });
+  }
+};

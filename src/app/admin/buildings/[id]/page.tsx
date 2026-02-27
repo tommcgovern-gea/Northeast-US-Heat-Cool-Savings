@@ -47,7 +47,7 @@ interface DashboardData {
 
 export default function BuildingDetailPage() {
   const params = useParams();
-  const buildingId = params.id as string;
+  const buildingId = params?.id as string;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -251,11 +251,10 @@ export default function BuildingDetailPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          message.delivered
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${message.delivered
                             ? "bg-green-100 text-green-800"
                             : "bg-red-100 text-red-800"
-                        }`}
+                          }`}
                       >
                         {message.deliveryStatus || (message.delivered ? "Delivered" : "Failed")}
                       </span>
@@ -302,11 +301,10 @@ export default function BuildingDetailPage() {
                   </div>
                   <div className="flex items-center space-x-2">
                     <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        upload.isCompliant
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${upload.isCompliant
                           ? "bg-green-100 text-green-800"
                           : "bg-red-100 text-red-800"
-                      }`}
+                        }`}
                     >
                       {upload.isCompliant ? "Compliant" : "Late"}
                     </span>

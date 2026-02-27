@@ -156,6 +156,23 @@ export default function TemplatesPage() {
     }
   };
 
+  const handleDeleteTemplate = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this template? Default template will be used if deleted.")) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/templates/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error("Failed to delete template");
+      fetchTemplates();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const getDefaultTemplate = (type: string): string => {
     const defaults: Record<string, string> = {
       alert: `⚠️ SUDDEN TEMPERATURE ALERT\n\nTemperature is expected to change by {{temperatureChange}}°F in the next {{timeWindow}} hours ({{currentTemp}}°F → {{futureTemp}}°F).\n\nPlease adjust heating/cooling settings accordingly.\n\nUpload compliance photo: {{uploadUrl}}`,
@@ -293,12 +310,20 @@ export default function TemplatesPage() {
                             {template.content}
                           </pre>
                         </div>
-                        <button
-                          onClick={() => handleEdit(template)}
-                          className="text-sm text-blue-600 hover:text-blue-900"
-                        >
-                          Edit Template
-                        </button>
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => handleEdit(template)}
+                            className="text-sm text-blue-600 hover:text-blue-900"
+                          >
+                            Edit Template
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTemplate(template.id)}
+                            className="text-sm text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>

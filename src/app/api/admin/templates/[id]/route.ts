@@ -1,13 +1,59 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken, TokenPayload } from '@/lib/auth';
-import { templateService } from '@/lib/services/templateService';
-import { sql } from '@/lib/db/client';
+import { NextRequest, NextResponse } from "next/server";
+import { verifyToken, TokenPayload } from "@/lib/auth";
+import { templateService } from "@/lib/services/templateService";
+import { sql } from "@/lib/db/client";
+
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ id: string }> }
+) {
+  try {
+    const params = await props.params;
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const user = verifyToken(token) as TokenPayload;
+
+    if (!user || user.role !== 'ADMIN') {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+
+    const result = await sql`SELECT * FROM message_templates WHERE id = ${params.id}`;
+
+    if (result.length === 0) {
+      return NextResponse.json({ message: 'Template not found' }, { status: 404 });
+    }
+
+    const template = result[0] as any;
+
+    return NextResponse.json({
+      id: template.id,
+      cityId: template.city_id,
+      templateType: template.template_type,
+      subject: template.subject,
+      content: template.content,
+      variables: template.variables,
+      isActive: template.is_active,
+      updatedAt: template.updated_at,
+    });
+  } catch (error) {
+    console.error('Error fetching template:', error);
+    return NextResponse.json(
+      { message: 'Error fetching template' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -85,9 +131,10 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });

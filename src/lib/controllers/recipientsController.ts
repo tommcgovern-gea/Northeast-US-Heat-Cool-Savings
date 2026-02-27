@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mockBuildings } from "@/lib/mock-buildings";
+import { db } from "@/lib/db/client";
 import { verifyToken, TokenPayload } from "@/lib/auth";
 
 // GET /api/recipients?buildingId=xxx
@@ -23,9 +23,8 @@ export const getRecipients = async (req: NextRequest) => {
       return NextResponse.json({ message: "buildingId query param is required" }, { status: 400 });
     }
 
-    const building = mockBuildings.find((b) => b.id === buildingId);
-
-    if (!building) {
+    const buildings = await db.getBuildings(undefined, buildingId);
+    if (buildings.length === 0) {
       return NextResponse.json({ message: "Building not found" }, { status: 404 });
     }
 
@@ -36,24 +35,24 @@ export const getRecipients = async (req: NextRequest) => {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const recipients = building.recipients || [];
-    const responseData = recipients.map((r: any) => ({
+    const recipients = await db.getRecipients(buildingId, true); // Include inactive for admin
+    const responseData = recipients.map((r) => ({
       id: r.id,
       name: r.name,
       email: r.email,
       phone: r.phone,
-      preferEmail: r.preferEmail,
-      preferSms: r.preferSms,
-      isActive: r.isActive,
+      preference: r.preference,
+      isActive: r.is_active,
     }));
 
     return NextResponse.json(responseData);
   } catch (error) {
+    console.error("Error fetching recipients:", error);
     return NextResponse.json({ message: "Error fetching recipients" }, { status: 500 });
   }
 };
 
-// POST /api/recipients  — body: { buildingId, name, email?, phone?, ... }
+// POST /api/recipients  — body: { buildingId, name, email?, phone?, preference? }
 export const createRecipient = async (req: NextRequest) => {
   try {
     const authHeader = req.headers.get("authorization");
@@ -74,8 +73,8 @@ export const createRecipient = async (req: NextRequest) => {
       return NextResponse.json({ message: "buildingId is required" }, { status: 400 });
     }
 
-    const building = mockBuildings.find((b) => b.id === body.buildingId);
-    if (!building) {
+    const buildings = await db.getBuildings(undefined, body.buildingId);
+    if (buildings.length === 0) {
       return NextResponse.json({ message: "Building not found" }, { status: 404 });
     }
 
@@ -87,39 +86,31 @@ export const createRecipient = async (req: NextRequest) => {
       return NextResponse.json({ message: "At least one of email or phone must be provided" }, { status: 400 });
     }
 
-    const newRecipient = {
-      id: Date.now().toString(),
+    const newRecipient = await db.createRecipient({
+      building_id: body.buildingId,
       name: body.name,
       email: body.email || null,
       phone: body.phone || null,
-      preferEmail: body.preferEmail !== undefined ? body.preferEmail : (body.email ? true : false),
-      preferSms: body.preferSms !== undefined ? body.preferSms : false,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    };
-
-    if (!building.recipients) {
-      building.recipients = [];
-    }
-
-    building.recipients.push(newRecipient);
+      preference: body.preference || (body.email && body.phone ? "both" : body.email ? "email" : "sms"),
+      is_active: true,
+    });
 
     return NextResponse.json({
       id: newRecipient.id,
       name: newRecipient.name,
       email: newRecipient.email,
       phone: newRecipient.phone,
-      preferEmail: newRecipient.preferEmail,
-      preferSms: newRecipient.preferSms,
-      isActive: newRecipient.isActive,
-      createdAt: newRecipient.createdAt,
+      preference: newRecipient.preference,
+      isActive: newRecipient.is_active,
+      createdAt: newRecipient.created_at,
     }, { status: 201 });
   } catch (error) {
+    console.error("Error creating recipient:", error);
     return NextResponse.json({ message: "Error creating recipient" }, { status: 500 });
   }
 };
 
-// PUT /api/recipients/:id  — body: { buildingId, name?, email?, phone?, ... }
+// PUT /api/recipients/:id  — body: { name?, email?, phone?, preference?, isActive? }
 export const updateRecipient = async (req: NextRequest, recipientId: string) => {
   try {
     const authHeader = req.headers.get("authorization");
@@ -136,47 +127,35 @@ export const updateRecipient = async (req: NextRequest, recipientId: string) => 
 
     const body = await req.json();
 
-    if (!body.buildingId) {
-      return NextResponse.json({ message: "buildingId is required" }, { status: 400 });
-    }
+    const updateData: any = {};
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.email !== undefined) updateData.email = body.email;
+    if (body.phone !== undefined) updateData.phone = body.phone;
+    if (body.preference !== undefined) updateData.preference = body.preference;
+    if (body.isActive !== undefined) updateData.is_active = body.isActive;
 
-    const building = mockBuildings.find((b) => b.id === body.buildingId);
+    const updated = await db.updateRecipient(recipientId, updateData);
 
-    if (!building || !building.recipients) {
-      return NextResponse.json({ message: "Building or recipients not found" }, { status: 404 });
-    }
-
-    const recipient = building.recipients.find((r: any) => r.id === recipientId);
-
-    if (!recipient) {
+    if (!updated) {
       return NextResponse.json({ message: "Recipient not found" }, { status: 404 });
     }
 
-    if (body.name !== undefined) recipient.name = body.name;
-    if (body.email !== undefined) recipient.email = body.email;
-    if (body.phone !== undefined) recipient.phone = body.phone;
-    if (body.preferEmail !== undefined) recipient.preferEmail = body.preferEmail;
-    if (body.preferSms !== undefined) recipient.preferSms = body.preferSms;
-    if (body.isActive !== undefined) recipient.isActive = body.isActive;
-
-    recipient.updatedAt = new Date().toISOString();
-
     return NextResponse.json({
-      id: recipient.id,
-      name: recipient.name,
-      email: recipient.email,
-      phone: recipient.phone,
-      preferEmail: recipient.preferEmail,
-      preferSms: recipient.preferSms,
-      isActive: recipient.isActive,
-      updatedAt: recipient.updatedAt,
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      phone: updated.phone,
+      preference: updated.preference,
+      isActive: updated.is_active,
+      updatedAt: updated.updated_at,
     });
   } catch (error) {
+    console.error("Error updating recipient:", error);
     return NextResponse.json({ message: "Error updating recipient" }, { status: 500 });
   }
 };
 
-// DELETE /api/recipients/:id?buildingId=xxx
+// DELETE /api/recipients/:id
 export const deleteRecipient = async (req: NextRequest, recipientId: string) => {
   try {
     const authHeader = req.headers.get("authorization");
@@ -191,29 +170,15 @@ export const deleteRecipient = async (req: NextRequest, recipientId: string) => 
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const buildingId = req.nextUrl.searchParams.get("buildingId");
+    const success = await db.deleteRecipient(recipientId);
 
-    if (!buildingId) {
-      return NextResponse.json({ message: "buildingId query param is required" }, { status: 400 });
-    }
-
-    const building = mockBuildings.find((b) => b.id === buildingId);
-
-    if (!building || !building.recipients) {
-      return NextResponse.json({ message: "Building or recipients not found" }, { status: 404 });
-    }
-
-    const recipientIndex = building.recipients.findIndex((r: any) => r.id === recipientId);
-
-    if (recipientIndex === -1) {
+    if (!success) {
       return NextResponse.json({ message: "Recipient not found" }, { status: 404 });
     }
 
-    // Hard delete
-    building.recipients.splice(recipientIndex, 1);
-
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("Error deleting recipient:", error);
     return NextResponse.json({ message: "Error deleting recipient" }, { status: 500 });
   }
 };
