@@ -31,11 +31,11 @@ export const getBuildings = async (req: NextRequest) => {
     const responseData = await Promise.all(
       list.map(async (b) => {
         const recipients = await db.getRecipients(b.id);
-        let complianceRate = 0;
+        let complianceRate: number | null = null;
         try {
           complianceRate = await complianceService.getBuildingComplianceRate(b.id, 30);
         } catch {
-          // Tables may not exist yet; use 0
+          // Tables may not exist yet
         }
         const city = await db.getCityById(b.city_id);
 
@@ -48,7 +48,7 @@ export const getBuildings = async (req: NextRequest) => {
           isActive: b.is_active,
           isPaused: b.is_paused,
           recipientCount: recipients.length,
-          complianceRate: Math.round(complianceRate * 10) / 10,
+          complianceRate: complianceRate != null ? Math.round(complianceRate * 10) / 10 : null,
         };
       })
     );
@@ -147,7 +147,7 @@ export const getBuildingById = async (req: NextRequest, id: string) => {
           preference: r.preference,
           isActive: r.is_active,
         })),
-        complianceRate: Math.round(complianceRate * 10) / 10,
+        complianceRate: complianceRate != null ? Math.round(complianceRate * 10) / 10 : null,
         isPaused: building.is_paused,
         isActive: building.is_active,
     });

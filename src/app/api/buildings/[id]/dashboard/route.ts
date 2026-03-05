@@ -40,7 +40,7 @@ export async function GET(
 
     const days = parseInt(req.nextUrl.searchParams.get('days') || '30');
 
-    let complianceRate = 0;
+    let complianceRate: number | null = null;
     try {
       complianceRate = await complianceService.getBuildingComplianceRate(params.id, days);
     } catch {
@@ -118,7 +118,7 @@ export async function GET(
         cityId: buildingData.city_id,
       },
       stats: {
-        complianceRate: Math.round(complianceRate * 10) / 10,
+        complianceRate: complianceRate != null ? Math.round(complianceRate * 10) / 10 : null,
         totalAlerts: parseInt(String(alertsRows[0]?.total_alerts ?? 0), 10),
         totalRecipients: parseInt(String(recipientsRows[0]?.total_recipients ?? 0), 10),
         days,

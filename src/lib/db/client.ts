@@ -294,7 +294,7 @@ export const db = {
     const result = await sql`
       SELECT * FROM temperature_snapshots
       WHERE city_id = ${cityId}
-        AND recorded_at >= NOW() - (INTERVAL '1 hour' * ${hours})
+        AND recorded_at >= NOW() - make_interval(hours => ${hours})
       ORDER BY recorded_at DESC
     `;
     return toRows(result) as TemperatureSnapshot[];

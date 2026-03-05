@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import { energyService } from '@/lib/services/energyService';
-import { sql } from '@/lib/db/client';
+import { sql, toRows } from '@/lib/db/client';
+import { db } from '@/lib/db/client';
 
 export async function GET(
   req: NextRequest,
@@ -51,6 +52,12 @@ export async function GET(
     }
 
     const utilityHistory = await energyService.getBuildingUtilityHistory(params.id, 36);
+    const building = await db.getBuildings(undefined, params.id);
+    const cityId = building?.[0]?.city_id;
+    const degreeDays = cityId
+      ? await energyService.getCityDegreeDaysHistory(cityId, 24)
+      : [];
+
     const baselinesResult = await sql`
       SELECT * FROM energy_baselines
       WHERE building_id = ${params.id}
@@ -64,9 +71,19 @@ export async function GET(
       LIMIT 12
     `;
 
+    const baselinesRows = toRows(baselinesResult);
+    const recentReportsRows = toRows(recentReportsResult);
+
     return NextResponse.json({
       buildingId: params.id,
-      utilityHistory: utilityHistory.map(u => ({
+      degreeDays: degreeDays.map((dd: any) => ({
+        id: dd.id,
+        month: dd.month,
+        year: dd.year,
+        hdd: Number(dd.heating_degree_days),
+        cdd: Number(dd.cooling_degree_days),
+      })),
+      utilityHistory: (utilityHistory ?? []).map(u => ({
         id: u.id,
         month: u.month,
         year: u.year,
@@ -77,7 +94,7 @@ export async function GET(
         totalKBTU: Number(u.total_kbtu),
         uploadedAt: u.created_at,
       })),
-      baselines: baselinesResult.rows.map(b => ({
+      baselines: baselinesRows.map((b: any) => ({
         id: b.id,
         month: b.month,
         baselineType: b.baseline_type,
@@ -87,7 +104,7 @@ export async function GET(
         dataPoints: b.data_points,
         calculatedAt: b.calculated_at,
       })),
-      recentReports: recentReportsResult.rows.map(r => ({
+      recentReports: recentReportsRows.map((r: any) => ({
         id: r.id,
         month: r.month,
         year: r.year,
@@ -98,11 +115,11 @@ export async function GET(
         emailedTo: r.emailed_to,
       })),
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching energy data:', error);
-    return NextResponse.json(
-      { message: 'Error fetching energy data' },
-      { status: 500 }
-    );
+    const msg = error?.message?.includes('does not exist')
+      ? 'Energy tables not found. Run: psql $POSTGRES_URL < src/lib/db/schema-milestone4.sql'
+      : 'Error fetching energy data';
+    return NextResponse.json({ message: msg }, { status: 500 });
   }
 }

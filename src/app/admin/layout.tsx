@@ -72,15 +72,15 @@ export default function AdminLayout({
     { name: "Buildings", href: "/admin/buildings", icon: "🏢" },
     { name: "Recipients", href: "/admin/recipients", icon: "👥" },
     // { name: "Templates", href: "/admin/templates", icon: "📝" },
-    // { name: "Compliance", href: "/admin/compliance", icon: "✅" },
-    // { name: "Messages", href: "/admin/messages", icon: "💬" },
-    // { name: "Energy Reports", href: "/admin/energy", icon: "⚡" },
+    { name: "Compliance", href: "/admin/compliance", icon: "✅" },
+    { name: "Message Logs", href: "/admin/messages", icon: "📋" },
+    { name: "Energy Reports", href: "/admin/energy", icon: "⚡" },
   ];
 
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
@@ -126,7 +126,7 @@ export default function AdminLayout({
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto w-full min-h-screen px-4 sm:px-6 lg:px-8 py-6">
         {children}
       </main>
     </div>

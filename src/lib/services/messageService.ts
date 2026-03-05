@@ -46,13 +46,14 @@ export class MessageService {
 
       for (const channel of channels) {
         const messageId = crypto.randomUUID();
-        const uploadToken = item.messageType !== 'warning' 
-          ? await this.generateUploadToken(messageId, item.buildingId)
-          : undefined;
-
-        const content = uploadToken 
-          ? `${item.content}\n\nUpload compliance photo: ${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`
-          : item.content;
+        const uploadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`;
+        const needsUploadLink = item.messageType !== 'warning';
+        let content = item.content;
+        if (needsUploadLink) {
+          content = content.includes('__UPLOAD_URL__')
+            ? content.replace('__UPLOAD_URL__', uploadUrl)
+            : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
+        }
         
         await sql`
           INSERT INTO messages (
@@ -110,7 +111,7 @@ export class MessageService {
           if (recipient?.phone) {
             const smsResult = await sendSMS(recipient.phone, msg.content);
             success = smsResult.success;
-            deliveryStatus = success ? 'delivered' : 'failed';
+            deliveryStatus = success ? 'delivered' : (smsResult.error ? `failed: ${smsResult.error}`.slice(0, 50) : 'failed');
             error = smsResult.error;
           }
         } else if (msg.channel === 'email') {
@@ -199,9 +200,6 @@ export class MessageService {
           templateContent = await templateService.getDefaultTemplate(messageType);
         }
 
-        const messageId = crypto.randomUUID();
-        const uploadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`;
-
         const variables: TemplateVariables = {
           temperatureChange: tempData.change || tempData.temperatureChange,
           timeWindow: tempData.timeWindow,
@@ -212,7 +210,7 @@ export class MessageService {
           maxTemp: tempData.maxTemp,
           cityName: city?.name || '',
           buildingName: building.name,
-          uploadUrl,
+          uploadUrl: '__UPLOAD_URL__',
         };
 
         const content = await templateService.renderTemplate(templateContent, variables);

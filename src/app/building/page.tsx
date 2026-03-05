@@ -12,7 +12,7 @@ interface DashboardData {
     cityId: string;
   };
   stats: {
-    complianceRate: number;
+    complianceRate: number | null;
     totalAlerts: number;
     totalRecipients: number;
     days: number;
@@ -141,7 +141,7 @@ export default function BuildingDashboard() {
                     Compliance Rate
                   </dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {data.stats.complianceRate}%
+                    {data.stats.complianceRate != null ? `${data.stats.complianceRate}%` : "N/A"}
                   </dd>
                 </dl>
               </div>

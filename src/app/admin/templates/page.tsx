@@ -175,9 +175,9 @@ export default function TemplatesPage() {
 
   const getDefaultTemplate = (type: string): string => {
     const defaults: Record<string, string> = {
-      alert: `⚠️ SUDDEN TEMPERATURE ALERT\n\nTemperature is expected to change by {{temperatureChange}}°F in the next {{timeWindow}} hours ({{currentTemp}}°F → {{futureTemp}}°F).\n\nPlease adjust heating/cooling settings accordingly.\n\nUpload compliance photo: {{uploadUrl}}`,
-      daily_summary: `📊 Daily Temperature Summary\n\nAverage: {{averageTemp}}°F\nHigh: {{maxTemp}}°F\nLow: {{minTemp}}°F\nChange from yesterday: {{temperatureChange}}°F\n\nPlease confirm your settings adjustment.\n\nUpload compliance photo: {{uploadUrl}}`,
-      warning: `⚠️ COMPLIANCE WARNING\n\nYou have not uploaded a compliance photo for the message sent {{hoursAgo}} hours ago.\n\nPlease upload your photo immediately. Failure to comply may void your guarantee.\n\nUpload link: {{uploadUrl}}`,
+      alert: `⚠️ SUDDEN TEMPERATURE ALERT\n\nTemperature is expected to change by {{temperatureChange}}°F in the next {{timeWindow}} hours ({{currentTemp}}°F → {{futureTemp}}°F).\n\nPlease adjust heating/cooling settings accordingly.\n\nUpload photo or BMS record: {{uploadUrl}}`,
+      daily_summary: `📊 Daily Temperature Summary\n\nAverage: {{averageTemp}}°F\nHigh: {{maxTemp}}°F\nLow: {{minTemp}}°F\nChange from yesterday: {{temperatureChange}}°F\n\nPlease confirm your settings adjustment.\n\nUpload photo or BMS record: {{uploadUrl}}`,
+      warning: `⚠️ COMPLIANCE WARNING\n\nYou have not uploaded compliance documentation (photo or BMS record) for the message sent {{hoursAgo}} hours ago.\n\nPlease upload immediately. Failure to comply may void your guarantee.\n\nUpload link: {{uploadUrl}}`,
     };
     return defaults[type] || "";
   };

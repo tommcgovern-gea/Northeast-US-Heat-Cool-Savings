@@ -12,7 +12,7 @@ interface Building {
   isActive: boolean;
   isPaused: boolean;
   recipientCount: number;
-  complianceRate: number;
+  complianceRate: number | null;
 }
 
 export default function BuildingsPage() {
@@ -271,7 +271,7 @@ export default function BuildingsPage() {
                   {building.recipientCount}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {building.complianceRate.toFixed(1)}%
+                  {building.complianceRate != null ? `${building.complianceRate.toFixed(1)}%` : "N/A"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex space-x-2">

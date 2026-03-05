@@ -93,7 +93,7 @@ export default function MessagesPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Message Logs</h1>
           <p className="mt-1 text-sm text-gray-500">
             View all sent messages and delivery status
           </p>

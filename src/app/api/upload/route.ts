@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
-import { sql } from '@/lib/db/client';
+import { sql, toRows } from '@/lib/db/client';
 import crypto from 'crypto';
+
+const ALLOWED_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|pdf|xlsx|xls)$/i;
+
+function isAllowedFile(file: File): boolean {
+  const mimeOk = file.type.startsWith('image/') ||
+    file.type === 'application/pdf' ||
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.type === 'application/vnd.ms-excel';
+  const extOk = ALLOWED_EXTENSIONS.test(file.name);
+  return mimeOk || extOk;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,9 +27,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!file.type.startsWith('image/')) {
+    if (!isAllowedFile(file)) {
       return NextResponse.json(
-        { message: 'File must be an image' },
+        { message: 'File must be a photo (image), BMS trending record (Excel), or PDF' },
         { status: 400 }
       );
     }
@@ -31,22 +42,21 @@ export async function POST(req: NextRequest) {
     }
 
     const messageResult = await sql`
-      SELECT m.*, r.building_id 
-      FROM messages m
-      JOIN recipients r ON r.id = m.recipient_id
-      WHERE m.id = ${token}
-        OR m.content LIKE ${`%token: ${token}%`}
+      SELECT * FROM messages
+      WHERE id = ${token}
+        OR content LIKE ${`%token: ${token}%`}
       LIMIT 1
     `;
 
-    if (messageResult.rows.length === 0) {
+    const msgRows = toRows(messageResult);
+    if (msgRows.length === 0) {
       return NextResponse.json(
         { message: 'Invalid or expired token' },
         { status: 404 }
       );
     }
 
-    const message = messageResult.rows[0];
+    const message = msgRows[0];
     const buildingId = message.building_id;
     const recipientId = message.recipient_id;
 
@@ -90,14 +100,14 @@ export async function POST(req: NextRequest) {
       uploadId,
       isCompliant,
       hoursSinceMessage: Math.round(hoursSinceMessage * 10) / 10,
-      message: isCompliant 
-        ? 'Photo uploaded successfully and is compliant'
-        : 'Photo uploaded but outside compliance window',
+      message: isCompliant
+        ? 'File uploaded successfully and is compliant'
+        : 'File uploaded but outside compliance window',
     });
   } catch (error: any) {
-    console.error('Error uploading photo:', error);
+    console.error('Error uploading file:', error);
     return NextResponse.json(
-      { message: 'Error uploading photo', error: error.message },
+      { message: 'Error uploading file', error: error.message },
       { status: 500 }
     );
   }
@@ -114,26 +124,26 @@ export async function GET(req: NextRequest) {
   }
 
   const messageResult = await sql`
-    SELECT m.*, r.building_id, b.name as building_name
+    SELECT m.*, b.name as building_name
     FROM messages m
-    JOIN recipients r ON r.id = m.recipient_id
-    JOIN buildings b ON b.id = r.building_id
+    LEFT JOIN buildings b ON b.id = m.building_id
     WHERE m.id = ${token}
     LIMIT 1
   `;
 
-  if (messageResult.rows.length === 0) {
+  const rows = toRows(messageResult);
+  if (rows.length === 0) {
     return NextResponse.json(
       { message: 'Invalid or expired token' },
       { status: 404 }
     );
   }
 
-  const message = messageResult.rows[0];
+  const message = rows[0];
   
   return NextResponse.json({
     valid: true,
-    buildingName: message.building_name,
+    buildingName: message.building_name || 'Building',
     messageType: message.message_type,
     sentAt: message.sent_at || message.created_at,
   });

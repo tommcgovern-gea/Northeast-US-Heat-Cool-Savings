@@ -3,18 +3,18 @@
 import { useEffect, useState } from "react";
 
 interface ComplianceData {
-  overallComplianceRate: number;
+  overallComplianceRate: number | null;
   buildings: Array<{
     buildingId: string;
     buildingName: string;
-    complianceRate: number;
+    complianceRate: number | null;
   }>;
   days: number;
 }
 
 interface BuildingMessages {
   buildingId: string;
-  complianceRate: number;
+  complianceRate: number | null;
   days: number;
   messages: Array<{
     id: string;
@@ -133,14 +133,16 @@ export default function CompliancePage() {
             </h2>
             <div className="flex items-center space-x-4">
               <div className="text-4xl font-bold text-gray-900">
-                {overview.overallComplianceRate.toFixed(1)}%
+                {overview.overallComplianceRate != null
+                  ? `${overview.overallComplianceRate.toFixed(1)}%`
+                  : "N/A"}
               </div>
               <div className="flex-1">
                 <div className="w-full bg-gray-200 rounded-full h-4">
                   <div
                     className="bg-green-600 h-4 rounded-full"
                     style={{
-                      width: `${overview.overallComplianceRate}%`,
+                      width: overview.overallComplianceRate != null ? `${overview.overallComplianceRate}%` : "0%",
                     }}
                   ></div>
                 </div>
@@ -174,20 +176,26 @@ export default function CompliancePage() {
                       <div className="flex items-center space-x-4">
                         <div className="text-right">
                           <p className="text-lg font-bold text-gray-900">
-                            {building.complianceRate.toFixed(1)}%
+                            {building.complianceRate != null
+                              ? `${building.complianceRate.toFixed(1)}%`
+                              : "N/A"}
                           </p>
                         </div>
                         <div className="w-24">
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div
                               className={`h-2 rounded-full ${
-                                building.complianceRate >= 80
+                                building.complianceRate == null
+                                  ? "bg-gray-400"
+                                  : building.complianceRate >= 80
                                   ? "bg-green-600"
                                   : building.complianceRate >= 50
                                   ? "bg-yellow-600"
                                   : "bg-red-600"
                               }`}
-                              style={{ width: `${building.complianceRate}%` }}
+                              style={{
+                                width: building.complianceRate != null ? `${building.complianceRate}%` : "0%",
+                              }}
                             ></div>
                           </div>
                         </div>

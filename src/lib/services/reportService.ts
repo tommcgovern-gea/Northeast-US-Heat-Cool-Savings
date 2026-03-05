@@ -1,7 +1,7 @@
 import { energyService, MonthlyComparison } from './energyService';
 import { db } from '@/lib/db/client';
 import { sendEmail } from './emailService';
-import { sql } from '@/lib/db/client';
+import { sql, toRows } from '@/lib/db/client';
 import { put } from '@vercel/blob';
 import PDFDocument from 'pdfkit';
 
@@ -63,15 +63,15 @@ export class ReportService {
       year,
       comparison,
       baselineInfo: {
-        heating: heatingBaseline.rows.length > 0 ? {
-          periodStart: heatingBaseline.rows[0].baseline_period_start,
-          periodEnd: heatingBaseline.rows[0].baseline_period_end,
-          dataPoints: heatingBaseline.rows[0].data_points,
+        heating: toRows(heatingBaseline).length > 0 ? {
+          periodStart: toRows(heatingBaseline)[0].baseline_period_start,
+          periodEnd: toRows(heatingBaseline)[0].baseline_period_end,
+          dataPoints: toRows(heatingBaseline)[0].data_points,
         } : undefined,
-        cooling: coolingBaseline.rows.length > 0 ? {
-          periodStart: coolingBaseline.rows[0].baseline_period_start,
-          periodEnd: coolingBaseline.rows[0].baseline_period_end,
-          dataPoints: coolingBaseline.rows[0].data_points,
+        cooling: toRows(coolingBaseline).length > 0 ? {
+          periodStart: toRows(coolingBaseline)[0].baseline_period_start,
+          periodEnd: toRows(coolingBaseline)[0].baseline_period_end,
+          dataPoints: toRows(coolingBaseline)[0].data_points,
         } : undefined,
       },
     };
@@ -256,12 +256,16 @@ export class ReportService {
       LIMIT 1
     `;
 
-    if (existing.rows.length > 0) {
+    const existingRows = toRows(existing);
+    const utilityRows = toRows(utilityResult);
+    const degreeDaysRows = toRows(degreeDaysResult);
+
+    if (existingRows.length > 0) {
       // Update existing report
       await sql`
         UPDATE energy_reports
-        SET utility_consumption_id = ${utilityResult.rows.length > 0 ? utilityResult.rows[0].id : null},
-            degree_days_id = ${degreeDaysResult.rows.length > 0 ? degreeDaysResult.rows[0].id : null},
+        SET utility_consumption_id = ${utilityRows.length > 0 ? utilityRows[0].id : null},
+            degree_days_id = ${degreeDaysRows.length > 0 ? degreeDaysRows[0].id : null},
             consumption_per_hdd = ${reportData.comparison.currentConsumptionPerHDD},
             consumption_per_cdd = ${reportData.comparison.currentConsumptionPerCDD},
             baseline_consumption_per_hdd = ${reportData.comparison.baselineConsumptionPerHDD},
@@ -271,9 +275,9 @@ export class ReportService {
             report_data = ${JSON.stringify(reportData)}::jsonb,
             pdf_url = ${pdfUrl},
             generated_at = NOW()
-        WHERE id = ${existing.rows[0].id}
+        WHERE id = ${existingRows[0].id}
       `;
-      return existing.rows[0].id;
+      return existingRows[0].id;
     }
 
     // Insert new report
@@ -287,8 +291,8 @@ export class ReportService {
         report_data, pdf_url
       ) VALUES (
         ${buildingId}, ${month}, ${year},
-        ${utilityResult.rows.length > 0 ? utilityResult.rows[0].id : null},
-        ${degreeDaysResult.rows.length > 0 ? degreeDaysResult.rows[0].id : null},
+        ${utilityRows.length > 0 ? utilityRows[0].id : null},
+        ${degreeDaysRows.length > 0 ? degreeDaysRows[0].id : null},
         ${reportData.comparison.currentConsumptionPerHDD},
         ${reportData.comparison.currentConsumptionPerCDD},
         ${reportData.comparison.baselineConsumptionPerHDD},
@@ -301,7 +305,7 @@ export class ReportService {
       RETURNING id
     `;
 
-    return result.rows[0].id;
+    return toRows(result)[0].id;
   }
 
   async sendReportEmail(

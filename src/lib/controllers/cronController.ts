@@ -50,7 +50,16 @@ export const checkAlerts = async (req: NextRequest) => {
     });
   } catch (error) {
     console.error("Error in check-alerts cron:", error);
-    return NextResponse.json({ message: "Error running check-alerts" }, { status: 500 });
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    return NextResponse.json(
+      {
+        message: "Error running check-alerts",
+        error: errMsg,
+        stack: process.env.NODE_ENV === "development" ? errStack : undefined,
+      },
+      { status: 500 }
+    );
   }
 };
 
@@ -101,7 +110,11 @@ export const dailySummary = async (req: NextRequest) => {
     });
   } catch (error) {
     console.error("Error in daily-summary cron:", error);
-    return NextResponse.json({ message: "Error running daily-summary" }, { status: 500 });
+    const errMsg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json(
+      { message: "Error running daily-summary", error: errMsg },
+      { status: 500 }
+    );
   }
 };
 

@@ -54,15 +54,17 @@ export class ComplianceService {
 
   async checkAndSendWarnings(): Promise<number> {
     const { sql } = await import('@/lib/db/client');
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    
+    const windowMs = 2 * 60 * 60 * 1000; // 2 hours
+    const cutoffTime = new Date(Date.now() - windowMs);
+
     const messagesResult = await sql`
       SELECT m.* FROM messages m
       LEFT JOIN photo_uploads p ON p.message_id = m.id
-      WHERE m.delivered = true
-        AND m.message_type IN ('alert', 'daily_summary')
-        AND m.sent_at < ${twoHoursAgo.toISOString()}
+      WHERE m.message_type IN ('alert', 'daily_summary')
+        AND m.sent_at IS NOT NULL
+        AND m.sent_at < ${cutoffTime.toISOString()}
         AND p.id IS NULL
+        AND m.delivered = true
         AND NOT EXISTS (
           SELECT 1 FROM messages w 
           WHERE w.building_id = m.building_id 
@@ -84,29 +86,37 @@ export class ComplianceService {
       if (!recipient || !recipient.is_active) continue;
 
       const warningContent = `⚠️ COMPLIANCE WARNING\n\n` +
-        `You have not uploaded a compliance photo for the message sent ${Math.round((Date.now() - new Date(message.sent_at).getTime()) / (1000 * 60 * 60) * 10) / 10} hours ago.\n\n` +
-        `Please upload your photo immediately. Failure to comply may void your guarantee.\n\n` +
+        `You have not uploaded compliance documentation (photo or BMS record) for the message sent ${Math.round((Date.now() - new Date(message.sent_at).getTime()) / (1000 * 60 * 60) * 10) / 10} hours ago.\n\n` +
+        `Please upload immediately. Failure to comply may void your guarantee.\n\n` +
         `Upload link: ${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${message.id}`;
 
-      const warningMessageId = crypto.randomUUID();
-      
-      await sql`
-        INSERT INTO messages (
-          id, building_id, recipient_id, message_type, 
-          channel, content, delivered, created_at
-        ) VALUES (
-          ${warningMessageId},
-          ${message.building_id},
-          ${message.recipient_id},
-          ${'warning'},
-          ${recipient.preference},
-          ${warningContent},
-          false,
-          NOW()
-        )
-      `;
+      const channels: ('email' | 'sms')[] = [];
+      if (recipient.preference === 'email' || recipient.preference === 'both') {
+        if (recipient.email) channels.push('email');
+      }
+      if (recipient.preference === 'sms' || recipient.preference === 'both') {
+        if (recipient.phone) channels.push('sms');
+      }
 
-      warningsSent++;
+      for (const ch of channels) {
+        const warningMessageId = crypto.randomUUID();
+        await sql`
+          INSERT INTO messages (
+            id, building_id, recipient_id, message_type,
+            channel, content, delivered, created_at
+          ) VALUES (
+            ${warningMessageId},
+            ${message.building_id},
+            ${message.recipient_id},
+            ${'warning'},
+            ${ch},
+            ${warningContent},
+            false,
+            NOW()
+          )
+        `;
+        warningsSent++;
+      }
     }
 
     if (warningsSent > 0) {
@@ -116,7 +126,7 @@ export class ComplianceService {
     return warningsSent;
   }
 
-  async getBuildingComplianceRate(buildingId: string, days: number = 30): Promise<number> {
+  async getBuildingComplianceRate(buildingId: string, days: number = 30): Promise<number | null> {
     const { sql } = await import('@/lib/db/client');
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
@@ -129,7 +139,7 @@ export class ComplianceService {
     `;
 
     const messages = toRows(messagesResult);
-    if (messages.length === 0) return 100;
+    if (messages.length === 0) return null;
 
     let compliantCount = 0;
 

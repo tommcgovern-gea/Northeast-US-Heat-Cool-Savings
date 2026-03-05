@@ -1,4 +1,4 @@
-import { sql } from '@/lib/db/client';
+import { sql, toRows } from '@/lib/db/client';
 import { db } from '@/lib/db/client';
 
 export interface MessageTemplate {
@@ -28,15 +28,19 @@ export interface TemplateVariables {
 
 export class TemplateService {
   async getTemplate(cityId: string, templateType: 'alert' | 'daily_summary' | 'warning'): Promise<MessageTemplate | null> {
-    const result = await sql`
-      SELECT * FROM message_templates
-      WHERE city_id = ${cityId}
-        AND template_type = ${templateType}
-        AND is_active = true
-      LIMIT 1
-    `;
-
-    return result.rows[0] as MessageTemplate | null;
+    try {
+      const result = await sql`
+        SELECT * FROM message_templates
+        WHERE city_id = ${cityId}
+          AND template_type = ${templateType}
+          AND is_active = true
+        LIMIT 1
+      `;
+      const rows = toRows(result);
+      return (rows[0] as MessageTemplate) ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async getDefaultTemplate(templateType: 'alert' | 'daily_summary' | 'warning'): Promise<string> {
@@ -46,7 +50,7 @@ export class TemplateService {
         `in the next {{timeWindow}} hours ` +
         `({{currentTemp}}°F → {{futureTemp}}°F).\n\n` +
         `Please adjust heating/cooling settings accordingly.\n\n` +
-        `Upload compliance photo: {{uploadUrl}}`,
+        `Upload photo or BMS record: {{uploadUrl}}`,
       
       daily_summary: `📊 Daily Temperature Summary\n\n` +
         `Average: {{averageTemp}}°F\n` +
@@ -54,11 +58,11 @@ export class TemplateService {
         `Low: {{minTemp}}°F\n` +
         `Change from yesterday: {{temperatureChange}}°F\n\n` +
         `Please confirm your settings adjustment.\n\n` +
-        `Upload compliance photo: {{uploadUrl}}`,
+        `Upload photo or BMS record: {{uploadUrl}}`,
       
       warning: `⚠️ COMPLIANCE WARNING\n\n` +
-        `You have not uploaded a compliance photo for the message sent {{hoursAgo}} hours ago.\n\n` +
-        `Please upload your photo immediately. Failure to comply may void your guarantee.\n\n` +
+        `You have not uploaded compliance documentation (photo or BMS record) for the message sent {{hoursAgo}} hours ago.\n\n` +
+        `Please upload immediately. Failure to comply may void your guarantee.\n\n` +
         `Upload link: {{uploadUrl}}`,
     };
 
@@ -98,7 +102,7 @@ export class TemplateService {
         WHERE id = ${existing.id}
         RETURNING *
       `;
-      return result.rows[0] as MessageTemplate;
+      return toRows(result)[0] as MessageTemplate;
     } else {
       const result = await sql`
         INSERT INTO message_templates (
@@ -113,7 +117,7 @@ export class TemplateService {
         )
         RETURNING *
       `;
-      return result.rows[0] as MessageTemplate;
+      return toRows(result)[0] as MessageTemplate;
     }
   }
 
@@ -124,7 +128,7 @@ export class TemplateService {
       ORDER BY template_type
     `;
 
-    return result.rows as MessageTemplate[];
+    return toRows(result) as MessageTemplate[];
   }
 
   async deleteTemplate(templateId: string): Promise<void> {

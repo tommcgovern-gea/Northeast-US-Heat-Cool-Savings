@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:migrate": "echo 'Run: psql $POSTGRES_URL < src/lib/db/schema.sql'",
     "db:seed": "tsx src/lib/db/seed.ts",
-    "test:ms1": "npx tsx scripts/test-milestone1.ts"
+    "test:ms1": "npx tsx scripts/test-milestone1.ts",
+    "cron:compliance": "tsx scripts/run-compliance-cron.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.9.0",
@@ -41,6 +42,7 @@
     "marked": "^17.0.3",
     "md-to-pdf": "^5.2.5",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   },
   "overrides": {

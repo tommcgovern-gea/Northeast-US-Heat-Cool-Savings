@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+type TriggerAction = "check-alerts" | "send-pending" | "daily-summary" | "check-compliance";
+
 interface DashboardData {
   overview: {
     totalCities: number;
@@ -12,7 +14,7 @@ interface DashboardData {
     totalMessages: number;
     totalAlerts: number;
     failedMessages: number;
-    overallComplianceRate: number;
+    overallComplianceRate: number | null;
     days: number;
   };
   cityStats: Array<{
@@ -25,7 +27,7 @@ interface DashboardData {
   buildingCompliance: Array<{
     buildingId: string;
     buildingName: string;
-    complianceRate: number;
+    complianceRate: number | null;
   }>;
   recentAlerts: Array<{
     id: string;
@@ -54,6 +56,8 @@ export default function AdminDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [triggerLoading, setTriggerLoading] = useState<TriggerAction | null>(null);
+  const [triggerResult, setTriggerResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -80,6 +84,31 @@ export default function AdminDashboard() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTrigger = async (action: TriggerAction) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setTriggerLoading(action);
+    setTriggerResult(null);
+    try {
+      const res = await fetch("/api/admin/trigger", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const detail = json.error ? `${json.message}: ${json.error}` : (json.message || "Request failed");
+        setTriggerResult(`Error: ${detail}`);
+      } else {
+        setTriggerResult(JSON.stringify(json, null, 2));
+      }
+    } catch (err: any) {
+      setTriggerResult(`Error: ${err.message}`);
+    } finally {
+      setTriggerLoading(null);
     }
   };
 
@@ -117,9 +146,53 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[calc(100vh-100px)] text-indigo-950 ">
-      <div>Admin Dashboard</div>
-      <p>WIP</p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-500">Overview and message triggers</p>
+      </div>
+
+      {/* Message Triggers - Simple UI to run cron actions */}
+      <div className="bg-white shadow rounded-lg p-6">
+        <h2 className="text-lg font-medium text-gray-900 mb-4">Message Triggers</h2>
+        <p className="text-sm text-gray-500 mb-4">Run these to test SMS/Email flow. No curl needed.</p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => handleTrigger("daily-summary")}
+            disabled={!!triggerLoading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {triggerLoading === "daily-summary" ? "Running…" : "1. Daily Summary"}
+          </button>
+          <button
+            onClick={() => handleTrigger("check-alerts")}
+            disabled={!!triggerLoading}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {triggerLoading === "check-alerts" ? "Running…" : "2. Check Alerts"}
+          </button>
+          <button
+            onClick={() => handleTrigger("send-pending")}
+            disabled={!!triggerLoading}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {triggerLoading === "send-pending" ? "Sending…" : "3. Send Pending"}
+          </button>
+          <button
+            onClick={() => handleTrigger("check-compliance")}
+            disabled={!!triggerLoading}
+            className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {triggerLoading === "check-compliance" ? "Running…" : "4. Check Compliance"}
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-gray-600">
+          1 = create & send daily summaries • 2 = weather alerts (if threshold hit) • 3 = send queued messages • 4 = send no-upload warnings
+        </p>
+        {triggerResult && (
+          <pre className="mt-4 p-4 bg-gray-200 rounded-md border border-gray-300 text-gray-900 text-sm overflow-auto max-h-48 font-mono">{triggerResult}</pre>
+        )}
+      </div>
     </div>
   );
 

@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
     const complianceData = await Promise.all(
       activeBuildings.map(async (building) => {
-        let rate = 0;
+        let rate: number | null = null;
         try {
           rate = await complianceService.getBuildingComplianceRate(building.id, days);
         } catch {
@@ -71,9 +71,11 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    const overallComplianceRate = complianceData.length > 0
-      ? complianceData.reduce((sum, b) => sum + b.complianceRate, 0) / complianceData.length
-      : 100;
+    const buildingsWithData = complianceData.filter((b) => b.complianceRate != null);
+    const overallComplianceRate =
+      buildingsWithData.length > 0
+        ? buildingsWithData.reduce((sum, b) => sum + (b.complianceRate ?? 0), 0) / buildingsWithData.length
+        : null;
 
     const recentAlertsResult = await sql`
       SELECT 
@@ -139,7 +141,7 @@ export async function GET(req: NextRequest) {
         totalMessages,
         totalAlerts,
         failedMessages,
-        overallComplianceRate: Math.round(overallComplianceRate * 10) / 10,
+        overallComplianceRate: overallComplianceRate != null ? Math.round(overallComplianceRate * 10) / 10 : null,
         days,
       },
       cityStats,
