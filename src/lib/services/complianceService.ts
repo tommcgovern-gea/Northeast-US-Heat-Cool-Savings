@@ -54,7 +54,8 @@ export class ComplianceService {
 
   async checkAndSendWarnings(): Promise<number> {
     const { sql } = await import('@/lib/db/client');
-    const windowMs = 2 * 60 * 60 * 1000; // 2 hours
+    const windowMs = 1 * 60 * 60 * 1000; // 2 hours
+    // const windowMs = 2 * 60 * 60 * 1000; // 2 hours
     const cutoffTime = new Date(Date.now() - windowMs);
 
     const messagesResult = await sql`
@@ -130,27 +131,78 @@ export class ComplianceService {
     const { sql } = await import('@/lib/db/client');
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const messagesResult = await sql`
-      SELECT m.id, m.sent_at FROM messages m
-      WHERE m.building_id = ${buildingId}
-        AND m.message_type IN ('alert', 'daily_summary')
-        AND m.sent_at >= ${startDate.toISOString()}
-        AND m.delivered = true
+    const result = await sql`
+      WITH msgs AS (
+        SELECT m.id, m.sent_at
+        FROM messages m
+        WHERE m.building_id = ${buildingId}
+          AND m.message_type IN ('alert', 'daily_summary')
+          AND m.sent_at >= ${startDate.toISOString()}
+          AND m.delivered = true
+      ),
+      with_upload AS (
+        SELECT msgs.id,
+          (EXISTS (SELECT 1 FROM photo_uploads p WHERE p.message_id = msgs.id)
+           AND (NOW()::timestamp - msgs.sent_at::timestamp) <= INTERVAL '2 hours') AS compliant
+        FROM msgs
+      )
+      SELECT
+        COUNT(*) FILTER (WHERE with_upload.compliant) AS compliant_count,
+        COUNT(*) AS total
+      FROM with_upload
     `;
+    const rows = toRows(result);
+    const total = parseInt(String(rows[0]?.total ?? 0), 10);
+    if (total === 0) return null;
+    const compliantCount = parseInt(String(rows[0]?.compliant_count ?? 0), 10);
+    return Math.round((compliantCount / total) * 100 * 10) / 10;
+  }
 
-    const messages = toRows(messagesResult);
-    if (messages.length === 0) return null;
+  /** Returns compliance rate per building in one query. Keys are building_id; value null if no messages. */
+  async getBuildingComplianceRatesBatch(
+    buildingIds: string[],
+    days: number = 30
+  ): Promise<Map<string, number | null>> {
+    const { sql } = await import('@/lib/db/client');
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const map = new Map<string, number | null>();
 
-    let compliantCount = 0;
+    if (buildingIds.length === 0) return map;
 
-    for (const message of messages) {
-      const compliance = await this.checkCompliance(message.id);
-      if (compliance?.isCompliant) {
-        compliantCount++;
-      }
+    const result = await sql`
+      WITH msgs AS (
+        SELECT m.building_id, m.id, m.sent_at
+        FROM messages m
+        WHERE m.building_id = ANY(${buildingIds})
+          AND m.message_type IN ('alert', 'daily_summary')
+          AND m.sent_at >= ${startDate.toISOString()}
+          AND m.delivered = true
+      ),
+      with_upload AS (
+        SELECT msgs.building_id, msgs.id,
+          (EXISTS (SELECT 1 FROM photo_uploads p WHERE p.message_id = msgs.id)
+           AND (NOW()::timestamp - msgs.sent_at::timestamp) <= INTERVAL '2 hours') AS compliant
+        FROM msgs
+      ),
+      agg AS (
+        SELECT building_id,
+          COUNT(*) FILTER (WHERE compliant) AS compliant_count,
+          COUNT(*) AS total
+        FROM with_upload
+        GROUP BY building_id
+      )
+      SELECT building_id, compliant_count, total FROM agg
+    `;
+    const rows = toRows(result);
+    for (const r of rows) {
+      const total = parseInt(String(r.total), 10);
+      const compliantCount = parseInt(String(r.compliant_count), 10);
+      map.set(r.building_id, total === 0 ? null : Math.round((compliantCount / total) * 100 * 10) / 10);
     }
-
-    return Math.round((compliantCount / messages.length) * 100 * 10) / 10;
+    for (const id of buildingIds) {
+      if (!map.has(id)) map.set(id, null);
+    }
+    return map;
   }
 
   async markUploadCompliant(uploadId: string): Promise<void> {

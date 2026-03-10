@@ -40,59 +40,58 @@ export async function GET(
 
     const days = parseInt(req.nextUrl.searchParams.get('days') || '30');
 
-    let complianceRate: number | null = null;
-    try {
-      complianceRate = await complianceService.getBuildingComplianceRate(params.id, days);
-    } catch {
-      // Tables may not exist
-    }
-
-    const messagesResult = await sql`
-      SELECT 
-        m.*,
-        COUNT(p.id) as upload_count,
-        MAX(p.uploaded_at) as last_upload
-      FROM messages m
-      LEFT JOIN photo_uploads p ON p.message_id = m.id
-      WHERE m.building_id = ${params.id}
-        AND m.message_type IN ('alert', 'daily_summary')
-        AND m.sent_at >= NOW() - (INTERVAL '1 day' * ${days})
-      GROUP BY m.id
-      ORDER BY m.sent_at DESC
-      LIMIT 50
-    `;
-
-    const alertsResult = await sql`
-      SELECT COUNT(*) as total_alerts
-      FROM messages
-      WHERE building_id = ${params.id}
-        AND message_type = 'alert'
-        AND sent_at >= NOW() - (INTERVAL '1 day' * ${days})
-        AND delivered = true
-    `;
-
-    const recipientsResult = await sql`
-      SELECT COUNT(*) as total_recipients
-      FROM recipients
-      WHERE building_id = ${params.id}
-        AND is_active = true
-    `;
-
-    const recentUploadsResult = await sql`
-      SELECT p.*, m.message_type, m.sent_at
-      FROM photo_uploads p
-      JOIN messages m ON m.id = p.message_id
-      WHERE p.building_id = ${params.id}
-      ORDER BY p.uploaded_at DESC
-      LIMIT 10
-    `;
-
-    const energyReportResult = await sql`
-      SELECT * FROM energy_reports
-      WHERE building_id = ${params.id}
-      ORDER BY year DESC, month DESC
-      LIMIT 1
-    `;
+    const [
+      complianceRate,
+      messagesResult,
+      alertsResult,
+      recipientsResult,
+      recentUploadsResult,
+      energyReportResult,
+    ] = await Promise.all([
+      complianceService.getBuildingComplianceRate(params.id, days).catch(() => null),
+      sql`
+        SELECT 
+          m.*,
+          COUNT(p.id) as upload_count,
+          MAX(p.uploaded_at) as last_upload
+        FROM messages m
+        LEFT JOIN photo_uploads p ON p.message_id = m.id
+        WHERE m.building_id = ${params.id}
+          AND m.message_type IN ('alert', 'daily_summary')
+          AND m.sent_at >= NOW() - (INTERVAL '1 day' * ${days})
+        GROUP BY m.id
+        ORDER BY m.sent_at DESC
+        LIMIT 50
+      `,
+      sql`
+        SELECT COUNT(*) as total_alerts
+        FROM messages
+        WHERE building_id = ${params.id}
+          AND message_type = 'alert'
+          AND sent_at >= NOW() - (INTERVAL '1 day' * ${days})
+          AND delivered = true
+      `,
+      sql`
+        SELECT COUNT(*) as total_recipients
+        FROM recipients
+        WHERE building_id = ${params.id}
+          AND is_active = true
+      `,
+      sql`
+        SELECT p.*, m.message_type, m.sent_at
+        FROM photo_uploads p
+        JOIN messages m ON m.id = p.message_id
+        WHERE p.building_id = ${params.id}
+        ORDER BY p.uploaded_at DESC
+        LIMIT 10
+      `,
+      sql`
+        SELECT * FROM energy_reports
+        WHERE building_id = ${params.id}
+        ORDER BY year DESC, month DESC
+        LIMIT 1
+      `,
+    ]);
 
     const messagesRows = toRows(messagesResult);
     const alertsRows = toRows(alertsResult);
