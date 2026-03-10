@@ -87,23 +87,30 @@ export async function GET(req: NextRequest) {
       LIMIT 20
     `;
 
-    const energyReportsResult = await sql`
-      SELECT 
-        er.*,
-        b.name as building_name
-      FROM energy_reports er
-      JOIN buildings b ON b.id = er.building_id
-      ORDER BY er.year DESC, er.month DESC
-      LIMIT 10
-    `;
-
-    const totalEnergySavingsResult = await sql`
-      SELECT 
-        SUM(savings_kbtu) as total_savings,
-        AVG(savings_percentage) as avg_savings_percentage
-      FROM energy_reports
-      WHERE year >= EXTRACT(YEAR FROM NOW()) - 1
-    `;
+    let energyReportsRows: any[] = [];
+    let totalEnergyRows: any[] = [];
+    try {
+      const energyReportsResult = await sql`
+        SELECT 
+          er.*,
+          b.name as building_name
+        FROM energy_reports er
+        JOIN buildings b ON b.id = er.building_id
+        ORDER BY er.year DESC, er.month DESC
+        LIMIT 10
+      `;
+      const totalEnergySavingsResult = await sql`
+        SELECT 
+          SUM(savings_kbtu) as total_savings,
+          AVG(savings_percentage) as avg_savings_percentage
+        FROM energy_reports
+        WHERE year >= EXTRACT(YEAR FROM NOW()) - 1
+      `;
+      energyReportsRows = toRows(energyReportsResult);
+      totalEnergyRows = toRows(totalEnergySavingsResult);
+    } catch {
+      // energy_reports table may not exist (milestone 4 schema)
+    }
 
     const cityStats = await Promise.all(
       cities.map(async (city) => {
@@ -117,19 +124,31 @@ export async function GET(req: NextRequest) {
         const cityAlertsRows = toRows(cityAlertsResult);
         const cityTotalAlerts = parseInt(String(cityAlertsRows[0]?.total ?? 0), 10);
 
+        const tempTrendResult = await sql`
+          SELECT recorded_at, temperature_f
+          FROM temperature_snapshots
+          WHERE city_id = ${city.id}
+            AND recorded_at >= NOW() - INTERVAL '7 days'
+          ORDER BY recorded_at ASC
+          LIMIT 100
+        `;
+        const tempRows = toRows(tempTrendResult);
+
         return {
           cityId: city.id,
           cityName: city.name,
           buildingCount: cityBuildings.length,
           activeBuildingCount: cityBuildings.filter(b => b.is_active && !b.is_paused).length,
           totalAlerts: cityTotalAlerts,
+          temperatureTrend: tempRows.map((r: any) => ({
+            at: r.recorded_at,
+            tempF: Number(r.temperature_f),
+          })),
         };
       })
     );
 
     const recentAlertsRows = toRows(recentAlertsResult);
-    const energyReportsRows = toRows(energyReportsResult);
-    const totalEnergyRows = toRows(totalEnergySavingsResult);
     const energyFirst = totalEnergyRows[0];
 
     return NextResponse.json({

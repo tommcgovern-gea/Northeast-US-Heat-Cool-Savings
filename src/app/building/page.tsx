@@ -293,7 +293,7 @@ export default function BuildingDashboard() {
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">
-              Recent Photo Uploads
+              Recent Uploads
             </h2>
             <div className="space-y-3">
               {data.recentUploads.map((upload) => (

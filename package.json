@@ -10,6 +10,7 @@
     "db:migrate": "echo 'Run: psql $POSTGRES_URL < src/lib/db/schema.sql'",
     "db:seed": "tsx src/lib/db/seed.ts",
     "test:ms1": "npx tsx scripts/test-milestone1.ts",
+    "test:alert-logic": "tsx scripts/test-alert-logic.ts",
     "cron:compliance": "tsx scripts/run-compliance-cron.ts"
   },
   "dependencies": {
