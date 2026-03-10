@@ -58,21 +58,15 @@ export async function GET(req: NextRequest) {
     }
 
     const buildings = await db.getBuildings();
-    const complianceData = await Promise.all(
-      buildings.map(async (building) => {
-        let rate: number | null = null;
-        try {
-          rate = await complianceService.getBuildingComplianceRate(building.id, days);
-        } catch {
-          // Tables may not exist
-        }
-        return {
-          buildingId: building.id,
-          buildingName: building.name,
-          complianceRate: rate,
-        };
-      })
+    const rateMap = await complianceService.getBuildingComplianceRatesBatch(
+      buildings.map((b) => b.id),
+      days
     );
+    const complianceData = buildings.map((building) => ({
+      buildingId: building.id,
+      buildingName: building.name,
+      complianceRate: rateMap.get(building.id) ?? null,
+    }));
 
     const buildingsWithData = complianceData.filter((b) => b.complianceRate != null);
     const overallRate =

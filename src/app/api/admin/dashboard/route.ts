@@ -55,21 +55,15 @@ export async function GET(req: NextRequest) {
     const failedMessagesRows = toRows(failedMessagesResult);
     const failedMessages = parseInt(String(failedMessagesRows[0]?.total ?? 0), 10);
 
-    const complianceData = await Promise.all(
-      activeBuildings.map(async (building) => {
-        let rate: number | null = null;
-        try {
-          rate = await complianceService.getBuildingComplianceRate(building.id, days);
-        } catch {
-          // Tables may not exist
-        }
-        return {
-          buildingId: building.id,
-          buildingName: building.name,
-          complianceRate: rate,
-        };
-      })
-    );
+    const complianceData = await (async () => {
+      const ids = activeBuildings.map((b) => b.id);
+      const rateMap = await complianceService.getBuildingComplianceRatesBatch(ids, days);
+      return activeBuildings.map((building) => ({
+        buildingId: building.id,
+        buildingName: building.name,
+        complianceRate: rateMap.get(building.id) ?? null,
+      }));
+    })();
 
     const buildingsWithData = complianceData.filter((b) => b.complianceRate != null);
     const overallComplianceRate =
@@ -132,6 +126,19 @@ export async function GET(req: NextRequest) {
     const totalEnergyRows = toRows(totalEnergySavingsResult);
     const energyFirst = totalEnergyRows[0];
 
+    const recentMessagesResult = await sql`
+      SELECT m.id, m.message_type, m.channel, m.sent_at, m.delivered, m.delivery_status,
+        b.name as building_name,
+        r.name as recipient_name,
+        (SELECT COUNT(*) FROM photo_uploads p WHERE p.message_id = m.id) as upload_count
+      FROM messages m
+      JOIN buildings b ON b.id = m.building_id
+      JOIN recipients r ON r.id = m.recipient_id
+      ORDER BY m.created_at DESC
+      LIMIT 20
+    `;
+    const recentMessagesRows = toRows(recentMessagesResult);
+
     return NextResponse.json({
       overview: {
         totalCities: cities.length,
@@ -167,6 +174,17 @@ export async function GET(req: NextRequest) {
         totalSavingsKBTU: energyFirst?.total_savings != null ? Number(energyFirst.total_savings) : 0,
         avgSavingsPercentage: energyFirst?.avg_savings_percentage != null ? Number(energyFirst.avg_savings_percentage) : 0,
       },
+      recentMessages: recentMessagesRows.map((m: any) => ({
+        id: m.id,
+        messageType: m.message_type,
+        channel: m.channel,
+        sentAt: m.sent_at,
+        delivered: !!m.delivered,
+        deliveryStatus: m.delivery_status,
+        buildingName: m.building_name,
+        recipientName: m.recipient_name,
+        hasUpload: parseInt(String(m.upload_count), 10) > 0,
+      })),
     });
   } catch (error) {
     console.error('Error fetching admin dashboard:', error);

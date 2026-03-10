@@ -254,17 +254,22 @@ export default function EnergyPage() {
         }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to generate report");
+        setShowReportModal(false);
+        setReportFormData({ month: "", year: "", emailTo: "" });
+        setError(data.message || "Failed to generate report");
+        return;
       }
 
       setShowReportModal(false);
       setReportFormData({ month: "", year: "", emailTo: "" });
+      setError("");
       fetchEnergyData();
       alert("Report generated successfully!");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Failed to generate report");
     }
   };
 
@@ -366,10 +371,10 @@ export default function EnergyPage() {
                           {monthNames[dd.month - 1]} {dd.year}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-amber-800">
-                          {dd.hdd.toLocaleString()}
+                          {(Number(dd.hdd ?? dd.heating_degree_days) || 0).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-sky-800">
-                          {dd.cdd.toLocaleString()}
+                          {(Number(dd.cdd ?? dd.cooling_degree_days) || 0).toLocaleString()}
                         </td>
                       </tr>
                     ))}
@@ -681,20 +686,20 @@ export default function EnergyPage() {
               <form onSubmit={handleExcelUpload}>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-800 mb-1">
+                      <label className="block text-sm font-medium text-gray-900 mb-1">
                         Data Type
                       </label>
                       <select
                         value={excelType}
                         onChange={(e) => setExcelType(e.target.value as "utility" | "degree-days")}
-                        className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="utility">Utility (kBTU per building)</option>
                         <option value="degree-days">Degree Days (HDD/CDD per city)</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-800 mb-1">
+                      <label className="block text-sm font-medium text-gray-900 mb-1">
                         Excel File (.xlsx, .xls)
                       </label>
                       <input
