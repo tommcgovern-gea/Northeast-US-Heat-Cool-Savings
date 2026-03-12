@@ -176,7 +176,7 @@ export default function CitiesPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Cities</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-800">
             Manage cities and their alert configurations
           </p>
         </div>
@@ -198,25 +198,25 @@ export default function CitiesPage() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 City
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 State
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 NWS Grid
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Alert Config
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Buildings
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -227,16 +227,16 @@ export default function CitiesPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {city.name}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {city.state}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {city.nwsOffice} ({city.nwsGridX}, {city.nwsGridY})
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {city.alertTempDelta}°F / {city.alertWindowHours}h
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {city.buildingCount}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -364,7 +364,7 @@ export default function CitiesPage() {
                             })
                           }
                         />
-                        <p className="mt-1 text-xs text-gray-500">3-letter code (OKX, LWX, BOS). Search city above to fill automatically.</p>
+                        <p className="mt-1 text-xs text-gray-800">3-letter code (OKX, LWX, BOS). Search city above to fill automatically.</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -409,7 +409,7 @@ export default function CitiesPage() {
                         />
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500 -mt-2">Grid X/Y: integers for the NWS office. Search city above to auto-fill, or use api.weather.gov.</p>
+                    <p className="text-xs text-gray-800 -mt-2">Grid X/Y: integers for the NWS office. Search city above to auto-fill, or use api.weather.gov.</p>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700">

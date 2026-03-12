@@ -47,10 +47,11 @@ export async function sendSMS(to: string, message: string): Promise<SMSResult> {
       messageId: result.sid,
     };
   } catch (error: any) {
-    console.error('Error sending SMS:', error);
+    const msg = error?.message ?? 'Failed to send SMS';
+    console.error('Error sending SMS:', msg);
     return {
       success: false,
-      error: error.message || 'Failed to send SMS',
+      error: msg,
     };
   }
 }

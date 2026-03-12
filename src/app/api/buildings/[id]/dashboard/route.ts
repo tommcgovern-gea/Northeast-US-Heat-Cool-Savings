@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken, TokenPayload } from '@/lib/auth';
+import { verifyToken, TokenPayload, canAccessBuilding } from '@/lib/auth';
 import { db } from '@/lib/db/client';
 import { complianceService } from '@/lib/services/complianceService';
 import { sql } from '@/lib/db/client';
@@ -34,7 +34,7 @@ export async function GET(
 
     const buildingData = building[0];
 
-    if (user.role === 'BUILDING' && user.buildingId !== params.id) {
+    if (user.role === 'BUILDING' && !canAccessBuilding(user, params.id)) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
@@ -73,9 +73,11 @@ export async function GET(
       `,
       sql`
         SELECT COUNT(*) as total_recipients
-        FROM recipients
-        WHERE building_id = ${params.id}
-          AND is_active = true
+        FROM users u
+        WHERE u.role = 'BUILDING'
+          AND u.building_ids IS NOT NULL
+          AND ${params.id}::uuid = ANY(u.building_ids)
+          AND (u.is_active IS NULL OR u.is_active = true)
       `,
       sql`
         SELECT p.*, m.message_type, m.sent_at

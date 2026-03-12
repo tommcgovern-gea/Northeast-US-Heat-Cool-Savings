@@ -79,12 +79,17 @@ export class ComplianceService {
     let warningsSent = 0;
 
     for (const message of messages) {
-      const recipientResult = await sql`
-        SELECT * FROM recipients WHERE id = ${message.recipient_id}
-      `;
-      const recipient = toRows(recipientResult)[0];
-
-      if (!recipient || !recipient.is_active) continue;
+      let contact: { email: string | null; phone: string | null; preference: string; is_active: boolean } | null = null;
+      if (message.user_id) {
+        const userResult = await sql`SELECT email, phone, COALESCE(preference, 'email') AS preference, COALESCE(is_active, true) AS is_active FROM users WHERE id = ${message.user_id}`;
+        contact = toRows(userResult)[0] ?? null;
+      }
+      if (!contact && message.recipient_id) {
+        const recipientResult = await sql`SELECT email, phone, preference, is_active FROM recipients WHERE id = ${message.recipient_id}`;
+        const r = toRows(recipientResult)[0];
+        contact = r ? { email: r.email, phone: r.phone, preference: r.preference || 'email', is_active: r.is_active } : null;
+      }
+      if (!contact || !contact.is_active) continue;
 
       const warningContent = `⚠️ COMPLIANCE WARNING\n\n` +
         `You have not uploaded compliance documentation (photo or BMS record) for the message sent ${Math.round((Date.now() - new Date(message.sent_at).getTime()) / (1000 * 60 * 60) * 10) / 10} hours ago.\n\n` +
@@ -92,30 +97,22 @@ export class ComplianceService {
         `Upload link: ${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${message.id}`;
 
       const channels: ('email' | 'sms')[] = [];
-      if (recipient.preference === 'email' || recipient.preference === 'both') {
-        if (recipient.email) channels.push('email');
-      }
-      if (recipient.preference === 'sms' || recipient.preference === 'both') {
-        if (recipient.phone) channels.push('sms');
-      }
+      if (contact.preference === 'email' || contact.preference === 'both') if (contact.email) channels.push('email');
+      if (contact.preference === 'sms' || contact.preference === 'both') if (contact.phone) channels.push('sms');
 
       for (const ch of channels) {
         const warningMessageId = crypto.randomUUID();
-        await sql`
-          INSERT INTO messages (
-            id, building_id, recipient_id, message_type,
-            channel, content, delivered, created_at
-          ) VALUES (
-            ${warningMessageId},
-            ${message.building_id},
-            ${message.recipient_id},
-            ${'warning'},
-            ${ch},
-            ${warningContent},
-            false,
-            NOW()
-          )
-        `;
+        if (message.user_id) {
+          await sql`
+            INSERT INTO messages (id, building_id, user_id, message_type, channel, content, delivered, created_at)
+            VALUES (${warningMessageId}, ${message.building_id}, ${message.user_id}, ${'warning'}, ${ch}, ${warningContent}, false, NOW())
+          `;
+        } else {
+          await sql`
+            INSERT INTO messages (id, building_id, recipient_id, message_type, channel, content, delivered, created_at)
+            VALUES (${warningMessageId}, ${message.building_id}, ${message.recipient_id}, ${'warning'}, ${ch}, ${warningContent}, false, NOW())
+          `;
+        }
         warningsSent++;
       }
     }

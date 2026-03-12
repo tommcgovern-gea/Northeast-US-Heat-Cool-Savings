@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken, TokenPayload } from '@/lib/auth';
+import { verifyToken, TokenPayload, canAccessBuilding } from '@/lib/auth';
 import { energyService } from '@/lib/services/energyService';
 import { sql, toRows } from '@/lib/db/client';
 import { db } from '@/lib/db/client';
@@ -22,7 +22,7 @@ export async function GET(
       return NextResponse.json({ message: 'Invalid token' }, { status: 401 });
     }
 
-    if (user.role === 'BUILDING' && user.buildingId !== params.id) {
+    if (user.role === 'BUILDING' && !canAccessBuilding(user, params.id)) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 

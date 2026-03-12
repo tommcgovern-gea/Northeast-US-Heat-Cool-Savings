@@ -101,7 +101,7 @@ function UploadContent() {
       <div className="max-w-md mx-auto bg-white shadow rounded-lg p-6">
         <h1 className="text-xl font-semibold text-gray-900">Upload compliance photo or BMS record</h1>
         {buildingName && (
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-gray-800">
             Building: <span className="font-medium">{buildingName}</span>
             {messageType && (
               <>
@@ -118,7 +118,7 @@ function UploadContent() {
               type="file"
               accept="image/*,.pdf,.xlsx,.xls"
               required
-              className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700"
+              className="mt-2 block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700"
             />
           </div>
           <button

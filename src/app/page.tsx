@@ -18,7 +18,7 @@ export default function Home() {
           Building Portal
         </Link>
       </div>
-      <p className="text-sm text-gray-500">Choose your role to sign in</p>
+      <p className="text-sm text-gray-800">Choose your role to sign in</p>
     </div>
   );
 }

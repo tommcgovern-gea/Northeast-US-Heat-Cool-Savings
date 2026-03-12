@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+interface Building {
+  id: string;
+  name: string;
+  cityName: string;
+}
+
 interface DashboardData {
   building: {
     id: string;
@@ -44,53 +50,59 @@ interface DashboardData {
 }
 
 export default function BuildingDashboard() {
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [buildingsLoaded, setBuildingsLoaded] = useState(false);
   const [error, setError] = useState("");
-  const [buildingId, setBuildingId] = useState<string>("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      if (payload.buildingId) {
-        setBuildingId(payload.buildingId);
-        fetchData(payload.buildingId);
-      } else {
-        setError("No building associated with your account");
+    fetch("/api/buildings", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch buildings");
+        return res.json();
+      })
+      .then((list: Building[]) => {
+        setBuildings(list);
+        if (list.length > 0 && !selectedBuildingId) setSelectedBuildingId(list[0].id);
+        if (list.length === 0) {
+          setError("No building associated with your account");
+          setLoading(false);
+        }
+        setBuildingsLoaded(true);
+      })
+      .catch((e: any) => {
+        setError(e.message || "No buildings");
         setLoading(false);
-      }
-    } catch {
-      setError("Invalid session");
-      setLoading(false);
-    }
+        setBuildingsLoaded(true);
+      });
   }, []);
 
-  const fetchData = async (id: string) => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
-      const response = await fetch(`/api/buildings/${id}/dashboard`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch building data");
-      }
-
-      const dashboardData = await response.json();
-      setData(dashboardData);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!selectedBuildingId) {
+      if (buildingsLoaded) setLoading(false);
+      return;
     }
-  };
+    setLoading(true);
+    setError("");
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    fetch(`/api/buildings/${selectedBuildingId}/dashboard`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch building data");
+        return res.json();
+      })
+      .then(setData)
+      .catch((err: any) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [selectedBuildingId]);
 
   if (loading) {
     return (
@@ -102,10 +114,26 @@ export default function BuildingDashboard() {
 
   if (error || !data) {
     return (
-      <div className="rounded-md bg-red-50 p-4">
-        <h3 className="text-sm font-medium text-red-800">
-          {error || "Building data not available"}
-        </h3>
+      <div className="space-y-4">
+        {buildings.length > 1 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium text-gray-700">Building:</span>
+            <select
+              value={selectedBuildingId}
+              onChange={(e) => setSelectedBuildingId(e.target.value)}
+              className="border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500"
+            >
+              {buildings.map((b) => (
+                <option key={b.id} value={b.id}>{b.name} – {b.cityName}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="rounded-md bg-red-50 p-4">
+          <h3 className="text-sm font-medium text-red-800">
+            {error || "Building data not available"}
+          </h3>
+        </div>
       </div>
     );
   }
@@ -117,9 +145,23 @@ export default function BuildingDashboard() {
 
   return (
     <div className="space-y-6">
+      {buildings.length > 1 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-gray-700">Building:</span>
+          <select
+            value={selectedBuildingId}
+            onChange={(e) => setSelectedBuildingId(e.target.value)}
+            className="border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500"
+          >
+            {buildings.map((b) => (
+              <option key={b.id} value={b.id}>{b.name} – {b.cityName}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">{data.building.name}</h1>
-        <p className="mt-1 text-sm text-gray-500">{data.building.address}</p>
+        <p className="mt-1 text-sm text-gray-800">{data.building.address}</p>
         {data.building.isPaused && (
           <div className="mt-2 inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">
             Building is currently paused
@@ -198,7 +240,7 @@ export default function BuildingDashboard() {
           </h2>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-800">
                 {monthNames[data.latestEnergyReport.month - 1]}{" "}
                 {data.latestEnergyReport.year}
               </p>
@@ -206,7 +248,7 @@ export default function BuildingDashboard() {
                 {data.latestEnergyReport.savingsPercentage >= 0 ? "+" : ""}
                 {data.latestEnergyReport.savingsPercentage.toFixed(1)}%
               </p>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-800 mt-1">
                 {data.latestEnergyReport.savingsKBTU >= 0 ? "+" : ""}
                 {data.latestEnergyReport.savingsKBTU.toLocaleString()} kBTU
               </p>
@@ -235,16 +277,16 @@ export default function BuildingDashboard() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Sent At
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Upload
                   </th>
                 </tr>
@@ -255,7 +297,7 @@ export default function BuildingDashboard() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {message.messageType.replace("_", " ")}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                       {new Date(message.sentAt).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -305,7 +347,7 @@ export default function BuildingDashboard() {
                     <p className="text-sm font-medium text-gray-900">
                       {upload.fileName}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-800">
                       {new Date(upload.uploadedAt).toLocaleString()}
                     </p>
                   </div>

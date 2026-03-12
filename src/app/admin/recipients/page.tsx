@@ -22,6 +22,7 @@ export default function RecipientsPage() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("");
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [recipientsLoading, setRecipientsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -30,10 +31,16 @@ export default function RecipientsPage() {
     email: "",
     phone: "",
     preference: "email",
+    buildingId: "",
+    buildingIds: [] as string[],
+    password: "",
+    confirmPassword: "",
   });
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRecipient, setEditingRecipient] = useState<Recipient | null>(null);
+  const [editBuildingIds, setEditBuildingIds] = useState<string[]>([]);
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     fetchBuildings();
@@ -41,6 +48,8 @@ export default function RecipientsPage() {
 
   useEffect(() => {
     if (selectedBuilding) {
+      setRecipientsLoading(true);
+      setRecipients([]);
       fetchRecipients();
     } else {
       setRecipients([]);
@@ -90,57 +99,99 @@ export default function RecipientsPage() {
       setRecipients(data);
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setRecipientsLoading(false);
     }
   };
 
-  const handleEdit = (recipient: Recipient) => {
+  const handleEdit = async (recipient: Recipient) => {
+    setError("");
     setEditingRecipient(recipient);
     setFormData({
       name: recipient.name || "",
       email: recipient.email || "",
       phone: recipient.phone || "",
       preference: recipient.preference,
+      buildingId: formData.buildingId,
+      buildingIds: [],
+      password: "",
+      confirmPassword: "",
     });
+    setEditBuildingIds([]);
     setShowEditModal(true);
+    setEditLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/recipients/${recipient.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setEditBuildingIds(data.buildingIds || []);
+        setFormData((prev) => ({ ...prev, buildingIds: data.buildingIds || [] }));
+      } else if (selectedBuilding) {
+        setEditBuildingIds([selectedBuilding]);
+        setFormData((prev) => ({ ...prev, buildingIds: [selectedBuilding] }));
+      }
+    } catch {
+      if (selectedBuilding) {
+        setEditBuildingIds([selectedBuilding]);
+        setFormData((prev) => ({ ...prev, buildingIds: [selectedBuilding] }));
+      }
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRecipient) return;
 
+    const ids = formData.buildingIds.length > 0 ? formData.buildingIds : editBuildingIds;
+    if (ids.length === 0) {
+      setError("Select at least one building");
+      return;
+    }
+
     try {
       const token = localStorage.getItem("token");
+      const body: Record<string, unknown> = {
+        name: formData.name,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        preference: formData.preference,
+        buildingIds: ids,
+      };
+
       const response = await fetch(`/api/recipients/${editingRecipient.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email || null,
-          phone: formData.phone || null,
-          preference: formData.preference,
-        }),
+        body: JSON.stringify(body),
       });
 
-      if (!response.ok) throw new Error("Failed to update recipient");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(typeof data?.message === "string" ? data.message : "Failed to update recipient");
+      }
 
       setShowEditModal(false);
       setEditingRecipient(null);
-      setFormData({ name: "", email: "", phone: "", preference: "email" });
+      setFormData({ name: "", email: "", phone: "", preference: "email", buildingId: "", buildingIds: [], password: "", confirmPassword: "" });
       fetchRecipients();
     } catch (err: any) {
       setError(err.message);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (recipient: Recipient) => {
     if (!confirm("Are you sure you want to delete this recipient?")) return;
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/recipients/${id}`, {
+      const url = new URL(`/api/recipients/${recipient.id}`, window.location.origin);
+      if (selectedBuilding) url.searchParams.set("buildingId", selectedBuilding);
+      const response = await fetch(url.toString(), {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -155,8 +206,25 @@ export default function RecipientsPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const ids = formData.buildingIds.length > 0 ? formData.buildingIds : (formData.buildingId ? [formData.buildingId] : []);
     if (!formData.email && !formData.phone) {
       setError("Email or phone is required");
+      return;
+    }
+    if (ids.length === 0) {
+      setError("Please select at least one building");
+      return;
+    }
+    if (formData.password && formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+    if (formData.password && formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    if (formData.password && !formData.email?.trim()) {
+      setError("Email is required when setting building portal password");
       return;
     }
 
@@ -171,11 +239,12 @@ export default function RecipientsPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          buildingId: selectedBuilding,
+          buildingIds: ids,
           name: formData.name,
           email: formData.email || null,
           phone: formData.phone || null,
           preference: formData.preference,
+          ...(formData.password ? { password: formData.password } : {}),
         }),
       });
 
@@ -184,8 +253,9 @@ export default function RecipientsPage() {
         throw new Error(data.message || "Failed to create recipient");
       }
 
+      const data = await response.json();
       setShowCreateModal(false);
-      setFormData({ name: "", email: "", phone: "", preference: "email" });
+      setFormData({ name: "", email: "", phone: "", preference: "email", buildingId: "", buildingIds: [], password: "", confirmPassword: "" });
       fetchRecipients();
     } catch (err: any) {
       setError(err.message);
@@ -202,42 +272,47 @@ export default function RecipientsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Recipients</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-800">
             Manage message recipients for buildings
           </p>
         </div>
-        <button
-          onClick={() => {
-            setFormData({ name: "", email: "", phone: "", preference: "email" });
-            setShowCreateModal(true);
-          }}
-          disabled={!selectedBuilding}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-        >
-          + Add Recipient
-        </button>
-      </div>
-
-      {/* Building Selector */}
-      <div className="bg-white shadow rounded-lg p-4 border border-gray-200">
-        <label className="block text-sm font-medium text-gray-800 mb-2">
-          Select Building
-        </label>
-        <select
-          value={selectedBuilding}
-          onChange={(e) => setSelectedBuilding(e.target.value)}
-          className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        >
-          <option value="">Select a building</option>
-          {buildings.map((building) => (
-            <option key={building.id} value={building.id} className="text-gray-900 bg-white">
-              {building.name} - {building.cityName}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-gray-700 whitespace-nowrap">Building:</label>
+          <select
+            value={selectedBuilding}
+            onChange={(e) => setSelectedBuilding(e.target.value)}
+            className="w-48 border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Select building</option>
+            {buildings.map((building) => (
+              <option key={building.id} value={building.id} className="text-gray-900 bg-white">
+                {building.name} - {building.cityName}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => {
+              const current = selectedBuilding || buildings[0]?.id || "";
+              setFormData({
+                name: "",
+                email: "",
+                phone: "",
+                preference: "email",
+                buildingId: current,
+                buildingIds: current ? [current] : [],
+                password: "",
+                confirmPassword: "",
+              });
+              setShowCreateModal(true);
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+          >
+            + Add Recipient
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -246,11 +321,15 @@ export default function RecipientsPage() {
         </div>
       )}
 
-      {selectedBuilding && (
+      {selectedBuilding ? (
         <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
-          {recipients.length === 0 ? (
+          {recipientsLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent" />
+            </div>
+          ) : recipients.length === 0 ? (
             <div className="p-8 text-center text-gray-700 bg-gray-50">
-              <p className="font-medium">No recipients yet.</p>
+              <p className="font-medium">No recipients for this building.</p>
               <p className="text-sm mt-1">Click &quot;+ Add Recipient&quot; to create one.</p>
             </div>
           ) : (
@@ -298,7 +377,7 @@ export default function RecipientsPage() {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(recipient.id)}
+                      onClick={() => handleDelete(recipient)}
                       className="text-red-700 hover:text-red-900 font-semibold"
                     >
                       Delete
@@ -309,6 +388,10 @@ export default function RecipientsPage() {
             </tbody>
           </table>
           )}
+        </div>
+      ) : (
+        <div className="bg-white shadow rounded-lg p-8 border border-gray-200 text-center text-gray-600">
+          <p className="font-medium">Select a building above to view its recipients.</p>
         </div>
       )}
 
@@ -327,6 +410,33 @@ export default function RecipientsPage() {
                     Add Recipient
                   </h3>
                   <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-800 mb-1">
+                        Building(s)
+                      </label>
+                      <p className="text-xs text-gray-600 mb-2">
+                        Select one or more buildings. Same email = one person; they will receive alerts for all selected buildings and can use the building portal for each.
+                      </p>
+                      <div className="border border-gray-300 rounded-md p-3 max-h-40 overflow-y-auto bg-gray-50">
+                        {buildings.map((building) => (
+                          <label key={building.id} className="flex items-center gap-2 py-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.buildingIds.includes(building.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, buildingIds: [...formData.buildingIds, building.id] });
+                                } else {
+                                  setFormData({ ...formData, buildingIds: formData.buildingIds.filter((id) => id !== building.id) });
+                                }
+                              }}
+                              className="rounded border-gray-400 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-900">{building.name} – {building.cityName}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-800 mb-1">
                         Name
@@ -355,6 +465,35 @@ export default function RecipientsPage() {
                           setFormData({ ...formData, email: e.target.value })
                         }
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-600">Optional: building portal login (email + password above)</p>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-0.5">Password</label>
+                        <input
+                          type="password"
+                          placeholder="Min 6 characters"
+                          autoComplete="new-password"
+                          className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={formData.password}
+                          onChange={(e) =>
+                            setFormData({ ...formData, password: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-0.5">Confirm password</label>
+                        <input
+                          type="password"
+                          placeholder="Repeat password"
+                          autoComplete="new-password"
+                          className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={formData.confirmPassword}
+                          onChange={(e) =>
+                            setFormData({ ...formData, confirmPassword: e.target.value })
+                          }
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-800 mb-1">
@@ -425,6 +564,39 @@ export default function RecipientsPage() {
                     Edit Recipient
                   </h3>
                   <div className="space-y-4">
+                    {editingRecipient && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-800 mb-1">
+                          Building(s)
+                        </label>
+                        <p className="text-xs text-gray-600 mb-2">
+                          Change which buildings this recipient is linked to. They will receive alerts for all selected buildings.
+                        </p>
+                        {editLoading ? (
+                          <p className="text-sm text-gray-500">Loading…</p>
+                        ) : (
+                          <div className="border border-gray-300 rounded-md p-3 max-h-40 overflow-y-auto bg-gray-50">
+                            {buildings.map((building) => (
+                              <label key={building.id} className="flex items-center gap-2 py-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.buildingIds.includes(building.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFormData({ ...formData, buildingIds: [...formData.buildingIds, building.id] });
+                                    } else {
+                                      setFormData({ ...formData, buildingIds: formData.buildingIds.filter((id) => id !== building.id) });
+                                    }
+                                  }}
+                                  className="rounded border-gray-400 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-900">{building.name} – {building.cityName}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div>
                       <label className="block text-sm font-medium text-gray-800 mb-1">Name</label>
                       <input

@@ -33,8 +33,9 @@ export async function GET(req: NextRequest) {
         LIMIT 10
       `,
       sql`
-        SELECT r.id, r.name, r.email, r.phone, r.preference, r.is_active
-        FROM recipients r
+        SELECT u.id, u.name, u.email, u.phone, u.preference, u.is_active
+        FROM users u
+        WHERE u.role = 'BUILDING'
         LIMIT 5
       `,
     ]);
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
       alertDailySummaryWithSentAt: toRows(alertMessages)[0]?.c ?? 0,
       candidatesOldNoUpload: toRows(oldNoUpload),
       sampleRecipients: toRows(withRecipients),
-      hint: 'Warnings need: alert/daily_summary, sent_at < cutoff, no upload, recipient with email or phone',
+      hint: 'Warnings need: alert/daily_summary, sent_at < cutoff, no upload, BUILDING user (or legacy recipient) with email or phone',
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

@@ -1,5 +1,10 @@
 import { NextRequest } from "next/server";
-import { updateRecipient, deleteRecipient } from "@/lib/controllers/recipientsController";
+import { getRecipientById, updateRecipient, deleteRecipient } from "@/lib/controllers/recipientsController";
+
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  return getRecipientById(req, params.id);
+}
 
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;

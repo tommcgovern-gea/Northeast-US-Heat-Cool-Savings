@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 
-type TriggerAction = "check-alerts" | "send-pending" | "daily-summary" | "check-compliance";
+type TriggerAction =
+  | "check-alerts"
+  | "send-pending"
+  | "daily-summary"
+  | "check-compliance";
 
 const DAYS = 30;
 
@@ -51,7 +55,15 @@ export default function AdminDashboard() {
   const [citiesLoading, setCitiesLoading] = useState(true);
   const [citiesError, setCitiesError] = useState("");
 
-  const [recentAlerts, setRecentAlerts] = useState<Array<{ id: string; cityName: string; alertType: string; triggeredAt: string; processed: boolean }>>([]);
+  const [recentAlerts, setRecentAlerts] = useState<
+    Array<{
+      id: string;
+      cityName: string;
+      alertType: string;
+      triggeredAt: string;
+      processed: boolean;
+    }>
+  >([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsError, setAlertsError] = useState("");
   const [alertsPage, setAlertsPage] = useState(1);
@@ -59,7 +71,9 @@ export default function AdminDashboard() {
   const [alertsTotal, setAlertsTotal] = useState(0);
   const [alertsTotalPages, setAlertsTotalPages] = useState(0);
 
-  const [buildingCompliance, setBuildingCompliance] = useState<ComplianceItem[]>([]);
+  const [buildingCompliance, setBuildingCompliance] = useState<
+    ComplianceItem[]
+  >([]);
   const [complianceLoading, setComplianceLoading] = useState(true);
   const [complianceError, setComplianceError] = useState("");
 
@@ -67,7 +81,9 @@ export default function AdminDashboard() {
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [messagesError, setMessagesError] = useState("");
 
-  const [triggerLoading, setTriggerLoading] = useState<TriggerAction | null>(null);
+  const [triggerLoading, setTriggerLoading] = useState<TriggerAction | null>(
+    null,
+  );
   const [triggerResult, setTriggerResult] = useState<string | null>(null);
 
   useEffect(() => {
@@ -85,7 +101,9 @@ export default function AdminDashboard() {
 
     (async () => {
       try {
-        const r1 = await fetch(`/api/admin/dashboard/stats?days=${DAYS}`, { headers });
+        const r1 = await fetch(`/api/admin/dashboard/stats?days=${DAYS}`, {
+          headers,
+        });
         const d1 = await r1.json().catch(() => ({}));
         if (!r1.ok) throw new Error(d1.message || "Stats failed");
         setStats(d1.overview);
@@ -96,7 +114,9 @@ export default function AdminDashboard() {
       }
 
       try {
-        const r2 = await fetch(`/api/admin/dashboard/cities?days=${DAYS}`, { headers });
+        const r2 = await fetch(`/api/admin/dashboard/cities?days=${DAYS}`, {
+          headers,
+        });
         const d2 = await r2.json().catch(() => ({}));
         if (!r2.ok) throw new Error(d2.message || "Cities failed");
         setCityStats(d2.cityStats ?? []);
@@ -107,7 +127,9 @@ export default function AdminDashboard() {
       }
 
       try {
-        const r3 = await fetch(`/api/admin/dashboard/alerts?page=1&limit=10`, { headers });
+        const r3 = await fetch(`/api/admin/dashboard/alerts?page=1&limit=10`, {
+          headers,
+        });
         const d3 = await r3.json().catch(() => ({}));
         if (!r3.ok) throw new Error(d3.message || "Alerts failed");
         setRecentAlerts(d3.recentAlerts ?? []);
@@ -122,7 +144,9 @@ export default function AdminDashboard() {
       }
 
       try {
-        const r4 = await fetch(`/api/admin/compliance?days=${DAYS}`, { headers });
+        const r4 = await fetch(`/api/admin/compliance?days=${DAYS}`, {
+          headers,
+        });
         const d4 = await r4.json().catch(() => ({}));
         if (!r4.ok) throw new Error(d4.message || "Compliance failed");
         setBuildingCompliance(d4.buildings ?? []);
@@ -133,7 +157,10 @@ export default function AdminDashboard() {
       }
 
       try {
-        const r5 = await fetch(`/api/admin/dashboard/messages?days=${DAYS}&limit=10`, { headers });
+        const r5 = await fetch(
+          `/api/admin/dashboard/messages?days=${DAYS}&limit=10`,
+          { headers },
+        );
         const d5 = await r5.json().catch(() => ({}));
         if (!r5.ok) throw new Error(d5.message || "Messages failed");
         setRecentMessages(d5.recentMessages ?? []);
@@ -151,9 +178,12 @@ export default function AdminDashboard() {
     setAlertsLoading(true);
     setAlertsError("");
     try {
-      const r = await fetch(`/api/admin/dashboard/alerts?page=${page}&limit=${limit}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const r = await fetch(
+        `/api/admin/dashboard/alerts?page=${page}&limit=${limit}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.message || "Alerts failed");
       setRecentAlerts(d.recentAlerts ?? []);
@@ -176,12 +206,17 @@ export default function AdminDashboard() {
     try {
       const res = await fetch("/api/admin/trigger", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ action }),
       });
       const json = await res.json();
       if (!res.ok) {
-        const detail = json.error ? `${json.message}: ${json.error}` : (json.message || "Request failed");
+        const detail = json.error
+          ? `${json.message}: ${json.error}`
+          : json.message || "Request failed";
         setTriggerResult(`Error: ${detail}`);
       } else {
         setTriggerResult(JSON.stringify(json, null, 2));
@@ -198,7 +233,7 @@ export default function AdminDashboard() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">Loading…</p>
+          <p className="mt-1 text-sm text-gray-800">Loading…</p>
         </div>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
@@ -224,8 +259,10 @@ export default function AdminDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          {stats ? `Overview of system activity and performance (last ${stats.days} days)` : "Loading…"}
+        <p className="mt-1 text-sm text-gray-800">
+          {stats
+            ? `Overview of system activity and performance (last ${stats.days} days)`
+            : "Loading…"}
         </p>
       </div>
 
@@ -233,14 +270,19 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-white overflow-hidden shadow rounded-lg p-5 animate-pulse">
+            <div
+              key={i}
+              className="bg-white overflow-hidden shadow rounded-lg p-5 animate-pulse"
+            >
               <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
               <div className="h-8 bg-gray-200 rounded w-1/2" />
             </div>
           ))
         ) : statsError ? (
           <div className="col-span-full rounded-md bg-red-50 p-4">
-            <p className="text-sm font-medium text-red-800">Stats: {statsError}</p>
+            <p className="text-sm font-medium text-red-800">
+              Stats: {statsError}
+            </p>
           </div>
         ) : stats ? (
           <>
@@ -252,8 +294,12 @@ export default function AdminDashboard() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Total Cities</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.totalCities}</dd>
+                      <dt className="text-sm font-medium text-gray-800 truncate">
+                        Total Cities
+                      </dt>
+                      <dd className="text-lg font-medium text-gray-900">
+                        {stats.totalCities}
+                      </dd>
                     </dl>
                   </div>
                 </div>
@@ -267,11 +313,16 @@ export default function AdminDashboard() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Active Buildings</dt>
+                      <dt className="text-sm font-medium text-gray-800 truncate">
+                        Active Buildings
+                      </dt>
                       <dd className="text-lg font-medium text-gray-900">
                         {stats.activeBuildings} / {stats.totalBuildings}
                         {stats.pausedBuildings > 0 && (
-                          <span className="text-yellow-600 text-sm"> ({stats.pausedBuildings} paused)</span>
+                          <span className="text-yellow-600 text-sm">
+                            {" "}
+                            ({stats.pausedBuildings} paused)
+                          </span>
                         )}
                       </dd>
                     </dl>
@@ -287,9 +338,16 @@ export default function AdminDashboard() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Alert Logs</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.totalAlerts}</dd>
-                      <dd className="text-xs text-gray-500">{stats.totalMessages} msgs · {stats.failedMessages} failed</dd>
+                      <dt className="text-sm font-medium text-gray-800 truncate">
+                        Alert Logs
+                      </dt>
+                      <dd className="text-lg font-medium text-gray-900">
+                        {stats.totalAlerts}
+                      </dd>
+                      <dd className="text-xs text-gray-800">
+                        {stats.totalMessages} msgs · {stats.failedMessages}{" "}
+                        failed
+                      </dd>
                     </dl>
                   </div>
                 </div>
@@ -303,7 +361,9 @@ export default function AdminDashboard() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Compliance Rate</dt>
+                      <dt className="text-sm font-medium text-gray-800 truncate">
+                        Compliance Rate
+                      </dt>
                       <dd className="text-lg font-medium text-gray-900">
                         {stats.overallComplianceRate != null
                           ? `${stats.overallComplianceRate.toFixed(1)}%`
@@ -320,15 +380,21 @@ export default function AdminDashboard() {
 
       {/* Message Triggers */}
       <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Message Triggers</h2>
-        <p className="text-sm text-gray-500 mb-4">Run cron actions manually for testing.</p>
+        <h2 className="text-lg font-medium text-gray-900 mb-4">
+          Message Triggers
+        </h2>
+        <p className="text-sm text-gray-800 mb-4">
+          Run cron actions manually for testing.
+        </p>
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => handleTrigger("daily-summary")}
             disabled={!!triggerLoading}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
           >
-            {triggerLoading === "daily-summary" ? "Running…" : "1. Daily Summary"}
+            {triggerLoading === "daily-summary"
+              ? "Running…"
+              : "1. Daily Summary"}
           </button>
           <button
             onClick={() => handleTrigger("check-alerts")}
@@ -349,11 +415,15 @@ export default function AdminDashboard() {
             disabled={!!triggerLoading}
             className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 text-sm font-medium"
           >
-            {triggerLoading === "check-compliance" ? "Running…" : "4. Check Compliance"}
+            {triggerLoading === "check-compliance"
+              ? "Running…"
+              : "4. Check Compliance"}
           </button>
         </div>
         {triggerResult && (
-          <pre className="mt-4 p-4 bg-gray-200 rounded-md border border-gray-300 text-gray-900 text-sm overflow-auto max-h-48 font-mono">{triggerResult}</pre>
+          <pre className="mt-4 p-4 bg-gray-200 rounded-md border border-gray-300 text-gray-900 text-sm overflow-auto max-h-48 font-mono">
+            {triggerResult}
+          </pre>
         )}
       </div>
 
@@ -361,7 +431,9 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">City Statistics</h2>
+            <h2 className="text-lg font-medium text-gray-900 mb-4">
+              City Statistics
+            </h2>
             {citiesLoading ? (
               <div className="animate-pulse space-y-2">
                 <div className="h-4 bg-gray-200 rounded w-full" />
@@ -375,33 +447,51 @@ export default function AdminDashboard() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">City</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buildings</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Alerts</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        City
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        Buildings
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        Active
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                        Alerts
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {cityStats.map((city) => (
                       <tr key={city.cityId}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{city.cityName}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{city.buildingCount}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{city.activeBuildingCount}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{city.totalAlerts}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {city.cityName}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                          {city.buildingCount}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                          {city.activeBuildingCount}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                          {city.totalAlerts}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-gray-500">No cities.</p>
+              <p className="text-sm text-gray-800">No cities.</p>
             )}
           </div>
         </div>
 
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">City Temperature Trends (7 days)</h2>
+            <h2 className="text-lg font-medium text-gray-900 mb-4">
+              City Temperature Trends (7 days)
+            </h2>
             {citiesLoading ? (
               <div className="animate-pulse space-y-3">
                 <div className="h-10 bg-gray-200 rounded" />
@@ -409,21 +499,33 @@ export default function AdminDashboard() {
               </div>
             ) : citiesError ? (
               <p className="text-sm text-red-600">Trends: {citiesError}</p>
-            ) : cityStats && cityStats.filter((c) => c.temperatureTrend && c.temperatureTrend.length > 0).length > 0 ? (
+            ) : cityStats &&
+              cityStats.filter(
+                (c) => c.temperatureTrend && c.temperatureTrend.length > 0,
+              ).length > 0 ? (
               <div className="space-y-4">
                 {cityStats
-                  .filter((c) => c.temperatureTrend && c.temperatureTrend.length > 0)
+                  .filter(
+                    (c) => c.temperatureTrend && c.temperatureTrend.length > 0,
+                  )
                   .map((city) => {
                     const pts = city.temperatureTrend!;
                     const last = pts[pts.length - 1];
                     const first = pts[0];
                     const change = first ? last.tempF - first.tempF : 0;
                     return (
-                      <div key={city.cityId} className="p-3 bg-gray-50 rounded-lg">
+                      <div
+                        key={city.cityId}
+                        className="p-3 bg-gray-50 rounded-lg"
+                      >
                         <div className="flex justify-between text-sm">
-                          <span className="font-medium text-gray-900">{city.cityName}</span>
-                          <span className="text-gray-500">
-                            {last.tempF.toFixed(1)}°F {change !== 0 && (change > 0 ? "↑" : "↓")} {Math.abs(change).toFixed(1)}°F
+                          <span className="font-medium text-gray-900">
+                            {city.cityName}
+                          </span>
+                          <span className="text-gray-800">
+                            {last.tempF.toFixed(1)}°F{" "}
+                            {change !== 0 && (change > 0 ? "↑" : "↓")}{" "}
+                            {Math.abs(change).toFixed(1)}°F
                           </span>
                         </div>
                         <div className="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -439,7 +541,9 @@ export default function AdminDashboard() {
                   })}
               </div>
             ) : (
-              <p className="text-sm text-gray-500">No temperature data in last 7 days.</p>
+              <p className="text-sm text-gray-800">
+                No temperature data in last 7 days.
+              </p>
             )}
           </div>
         </div>
@@ -449,9 +553,11 @@ export default function AdminDashboard() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Recent Alert Logs</h2>
+            <h2 className="text-lg font-medium text-gray-900">
+              Recent Alert Logs
+            </h2>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-gray-800">
                 Show
                 <select
                   value={alertsLimit}
@@ -464,9 +570,10 @@ export default function AdminDashboard() {
                 per page
               </span>
               {alertsTotal > 0 && (
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-800">
                   {alertsPage > 1 ? (alertsPage - 1) * alertsLimit + 1 : 1}–
-                  {Math.min(alertsPage * alertsLimit, alertsTotal)} of {alertsTotal}
+                  {Math.min(alertsPage * alertsLimit, alertsTotal)} of{" "}
+                  {alertsTotal}
                 </span>
               )}
               <div className="flex gap-1">
@@ -500,20 +607,29 @@ export default function AdminDashboard() {
           ) : recentAlerts.length > 0 ? (
             <div className="space-y-3">
               {recentAlerts.map((alert) => (
-                <div key={alert.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div
+                  key={alert.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{alert.cityName}</p>
-                    <p className="text-xs text-gray-500">{alert.alertType.replace("_", " ")}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {alert.cityName}
+                    </p>
+                    <p className="text-xs text-gray-800">
+                      {alert.alertType.replace("_", " ")}
+                    </p>
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-800">
                     {new Date(alert.triggeredAt).toLocaleString()}
-                    {alert.processed && <span className="ml-2 text-green-600">✓</span>}
+                    {alert.processed && (
+                      <span className="ml-2 text-green-600">✓</span>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">No alerts in period.</p>
+            <p className="text-sm text-gray-800">No alerts in period.</p>
           )}
         </div>
       </div>
@@ -521,7 +637,9 @@ export default function AdminDashboard() {
       {/* Section 4: Compliance per building */}
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Compliance per building</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">
+            Compliance per building
+          </h2>
           {complianceLoading ? (
             <div className="animate-pulse space-y-2">
               <div className="h-10 bg-gray-200 rounded w-full" />
@@ -529,22 +647,32 @@ export default function AdminDashboard() {
               <div className="h-10 bg-gray-200 rounded w-4/6" />
             </div>
           ) : complianceError ? (
-            <p className="text-sm text-red-600">Compliance: {complianceError}</p>
+            <p className="text-sm text-red-600">
+              Compliance: {complianceError}
+            </p>
           ) : buildingCompliance.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Building</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Compliance</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Building
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Compliance
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {buildingCompliance.map((b) => (
                     <tr key={b.buildingId}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{b.buildingName}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {b.buildingName}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {b.complianceRate != null ? `${b.complianceRate.toFixed(1)}%` : "—"}
+                        {b.complianceRate != null
+                          ? `${b.complianceRate.toFixed(1)}%`
+                          : "—"}
                       </td>
                     </tr>
                   ))}
@@ -552,7 +680,7 @@ export default function AdminDashboard() {
               </table>
             </div>
           ) : (
-            <p className="text-sm text-gray-500">No compliance data.</p>
+            <p className="text-sm text-gray-800">No compliance data.</p>
           )}
         </div>
       </div>
@@ -560,7 +688,9 @@ export default function AdminDashboard() {
       {/* Section 5: Message history & upload status */}
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Message history & upload status</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">
+            Message history & upload status
+          </h2>
           {messagesLoading ? (
             <div className="animate-pulse space-y-2">
               <div className="h-10 bg-gray-200 rounded w-full" />
@@ -574,20 +704,36 @@ export default function AdminDashboard() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Building</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sent</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivered</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Building
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Sent
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                      Delivered
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {recentMessages.map((m) => (
                     <tr key={m.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{m.messageType.replace("_", " ")}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{m.buildingName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(m.sentAt).toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {m.messageType.replace("_", " ")}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {m.buildingName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {new Date(m.sentAt).toLocaleString()}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${m.delivered ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${m.delivered ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+                        >
                           {m.delivered ? "Yes" : "No"}
                         </span>
                       </td>
@@ -597,7 +743,7 @@ export default function AdminDashboard() {
               </table>
             </div>
           ) : (
-            <p className="text-sm text-gray-500">No messages yet.</p>
+            <p className="text-sm text-gray-800">No messages yet.</p>
           )}
         </div>
       </div>

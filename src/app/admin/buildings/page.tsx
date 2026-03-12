@@ -213,7 +213,7 @@ export default function BuildingsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Buildings</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-800">
             Manage buildings and their settings
           </p>
         </div>
@@ -235,22 +235,22 @@ export default function BuildingsPage() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Building
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 City
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Recipients
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Compliance
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -262,15 +262,15 @@ export default function BuildingsPage() {
                   <div className="text-sm font-medium text-gray-900">
                     {building.name}
                   </div>
-                  <div className="text-sm text-gray-500">{building.address}</div>
+                  <div className="text-sm text-gray-800">{building.address}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {building.cityName}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {building.recipientCount}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {building.complianceRate != null ? `${building.complianceRate.toFixed(1)}%` : "N/A"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -342,7 +342,7 @@ export default function BuildingsPage() {
                   <h3 className="text-xl leading-6 font-bold text-gray-900 mb-1">
                     Add Building to Watch
                   </h3>
-                  <p className="text-sm text-gray-500 mb-4">
+                  <p className="text-sm text-gray-800 mb-4">
                     Select a city first to see existing buildings or add a new one.
                   </p>
 
@@ -406,7 +406,7 @@ export default function BuildingsPage() {
                                   ))}
                               </ul>
                             ) : (
-                              <div className="p-4 text-center text-sm text-gray-500 italic">
+                              <div className="p-4 text-center text-sm text-gray-800 italic">
                                 No buildings added yet in this city.
                               </div>
                             )}
@@ -497,7 +497,7 @@ export default function BuildingsPage() {
                   <h3 className="text-xl leading-6 font-bold text-gray-900 mb-1">
                     Edit Building
                   </h3>
-                  <p className="text-sm text-gray-500 mb-4">
+                  <p className="text-sm text-gray-800 mb-4">
                     Update building details.
                   </p>
 

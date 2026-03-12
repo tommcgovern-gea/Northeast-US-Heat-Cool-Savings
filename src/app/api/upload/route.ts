@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
 
     const message = msgRows[0];
     const buildingId = message.building_id;
-    const recipientId = message.recipient_id;
+    const userId = message.user_id ?? null;
+    const recipientId = message.recipient_id ?? null;
 
     const fileName = `${crypto.randomUUID()}-${file.name}`;
     const blob = await put(fileName, file, {
@@ -69,12 +70,13 @@ export async function POST(req: NextRequest) {
     const uploadId = crypto.randomUUID();
     await sql`
       INSERT INTO photo_uploads (
-        id, message_id, building_id, recipient_id,
+        id, message_id, building_id, user_id, recipient_id,
         file_url, file_name, uploaded_at, is_compliant, compliance_window_hours
       ) VALUES (
         ${uploadId},
         ${message.id},
         ${buildingId},
+        ${userId},
         ${recipientId},
         ${blob.url},
         ${file.name},

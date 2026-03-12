@@ -201,7 +201,7 @@ export default function TemplatesPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Message Templates</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-800">
             Customize message templates per city
           </p>
         </div>
@@ -215,7 +215,7 @@ export default function TemplatesPage() {
         <select
           value={selectedCity}
           onChange={(e) => setSelectedCity(e.target.value)}
-          className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         >
           <option value="">Select a city</option>
           {cities.map((city) => (
@@ -265,7 +265,7 @@ export default function TemplatesPage() {
                           </label>
                           <input
                             type="text"
-                            className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                             value={formData.subject}
                             onChange={(e) =>
                               setFormData({ ...formData, subject: e.target.value })
@@ -278,13 +278,13 @@ export default function TemplatesPage() {
                           </label>
                           <textarea
                             rows={10}
-                            className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                            className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 font-mono text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                             value={formData.content}
                             onChange={(e) =>
                               setFormData({ ...formData, content: e.target.value })
                             }
                           />
-                          <p className="mt-2 text-xs text-gray-500">
+                          <p className="mt-2 text-xs text-gray-800">
                             Available variables: {`{{temperatureChange}}`}, {`{{timeWindow}}`}, {`{{currentTemp}}`}, {`{{futureTemp}}`}, {`{{averageTemp}}`}, {`{{minTemp}}`}, {`{{maxTemp}}`}, {`{{cityName}}`}, {`{{buildingName}}`}, {`{{uploadUrl}}`}
                           </p>
                         </div>
@@ -306,7 +306,7 @@ export default function TemplatesPage() {
                     ) : (
                       <div>
                         <div className="bg-gray-50 rounded-md p-4 mb-4">
-                          <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
+                          <pre className="whitespace-pre-wrap text-sm text-gray-900 font-mono">
                             {template.content}
                           </pre>
                         </div>
@@ -328,7 +328,7 @@ export default function TemplatesPage() {
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-800">
                     No template created. Default template will be used.
                   </p>
                 )}

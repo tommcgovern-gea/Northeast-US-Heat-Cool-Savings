@@ -81,7 +81,14 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
+    const err = error instanceof Error ? error.message : String(error);
     console.error('Dashboard stats error:', error);
-    return NextResponse.json({ message: 'Error fetching stats' }, { status: 500 });
+    return NextResponse.json(
+      {
+        message: 'Error fetching stats',
+        ...(process.env.NODE_ENV === 'development' && { error: err }),
+      },
+      { status: 500 }
+    );
   }
 }

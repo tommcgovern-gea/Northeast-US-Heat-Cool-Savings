@@ -32,16 +32,17 @@ export async function GET(req: NextRequest) {
         SELECT 
           m.*,
           b.name as building_name,
-          r.name as recipient_name,
-          r.email,
-          r.phone,
+          COALESCE(u.name, r.name) as recipient_name,
+          COALESCE(u.email, r.email) as email,
+          COALESCE(u.phone, r.phone) as phone,
           COUNT(p.id) as upload_count
         FROM messages m
         JOIN buildings b ON b.id = m.building_id
-        JOIN recipients r ON r.id = m.recipient_id
+        LEFT JOIN users u ON u.id = m.user_id
+        LEFT JOIN recipients r ON r.id = m.recipient_id
         LEFT JOIN photo_uploads p ON p.message_id = m.id
         WHERE m.building_id = ${buildingId}
-        GROUP BY m.id, b.name, r.name, r.email, r.phone
+        GROUP BY m.id, b.name, u.name, u.email, u.phone, r.name, r.email, r.phone
         ORDER BY m.created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `;
@@ -50,15 +51,16 @@ export async function GET(req: NextRequest) {
         SELECT 
           m.*,
           b.name as building_name,
-          r.name as recipient_name,
-          r.email,
-          r.phone,
+          COALESCE(u.name, r.name) as recipient_name,
+          COALESCE(u.email, r.email) as email,
+          COALESCE(u.phone, r.phone) as phone,
           COUNT(p.id) as upload_count
         FROM messages m
         JOIN buildings b ON b.id = m.building_id
-        JOIN recipients r ON r.id = m.recipient_id
+        LEFT JOIN users u ON u.id = m.user_id
+        LEFT JOIN recipients r ON r.id = m.recipient_id
         LEFT JOIN photo_uploads p ON p.message_id = m.id
-        GROUP BY m.id, b.name, r.name, r.email, r.phone
+        GROUP BY m.id, b.name, u.name, u.email, u.phone, r.name, r.email, r.phone
         ORDER BY m.created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `;

@@ -291,7 +291,7 @@ export default function EnergyPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Energy & Reports</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-800">
             Manage utility data and generate energy savings reports
           </p>
         </div>
@@ -321,7 +321,7 @@ export default function EnergyPage() {
         <select
           value={selectedBuilding}
           onChange={(e) => setSelectedBuilding(e.target.value)}
-          className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         >
           <option value="">Select a building</option>
           {buildings.map((building) => (
@@ -346,14 +346,14 @@ export default function EnergyPage() {
               <h2 className="text-lg font-medium text-gray-900 mb-4">
                 Degree Days (HDD / CDD)
               </h2>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm text-gray-800 mb-4">
                 Heating Degree Days (HDD) and Cooling Degree Days (CDD) for this city. Upload via Excel (Degree Days type).
               </p>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         Period
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-amber-700 uppercase tracking-wider">
@@ -371,10 +371,10 @@ export default function EnergyPage() {
                           {monthNames[dd.month - 1]} {dd.year}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-amber-800">
-                          {(Number(dd.hdd ?? dd.heating_degree_days) || 0).toLocaleString()}
+                          {(Number(dd.hdd ?? 0) || 0).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-sky-800">
-                          {(Number(dd.cdd ?? dd.cooling_degree_days) || 0).toLocaleString()}
+                          {(Number(dd.cdd ?? 0) || 0).toLocaleString()}
                         </td>
                       </tr>
                     ))}
@@ -416,10 +416,10 @@ export default function EnergyPage() {
                     <p className="text-2xl font-bold text-gray-900">
                       {baseline.avgConsumptionPerDegreeDay.toFixed(4)}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-800 mt-1">
                       kBTU per {baseline.baselineType === "heating" ? "HDD" : "CDD"}
                     </p>
-                    <p className="text-xs text-gray-400 mt-2">
+                    <p className="text-xs text-gray-800 mt-2">
                       {baseline.dataPoints} data points
                     </p>
                   </div>
@@ -444,7 +444,7 @@ export default function EnergyPage() {
                       <p className="text-sm font-medium text-gray-900">
                         {monthNames[report.month - 1]} {report.year}
                       </p>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-800 mt-1">
                         Savings:{" "}
                         <span
                           className={`font-bold ${
@@ -486,16 +486,16 @@ export default function EnergyPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         Period
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         Electric
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         Gas
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                         Total kBTU
                       </th>
                     </tr>
@@ -506,12 +506,12 @@ export default function EnergyPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {monthNames[utility.month - 1]} {utility.year}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                           {utility.electricKWH
                             ? utility.electricKWH.toLocaleString() + " kWh"
                             : "-"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                           {utility.gasTherms
                             ? utility.gasTherms.toLocaleString() + " therms"
                             : "-"}
@@ -706,9 +706,9 @@ export default function EnergyPage() {
                         type="file"
                         accept=".xlsx,.xls"
                         required
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700"
+                        className="block w-full text-sm text-gray-800 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700"
                       />
-                      <p className="mt-1 text-xs text-gray-500">
+                      <p className="mt-1 text-xs text-gray-800">
                         {excelType === "utility" ? "Columns: month, year, totalKBTU (optional: electricKWH, gasTherms, fuelOilGallons, districtSteamMBTU)" : "Columns: month, year, hdd, cdd (or heating_degree_days, cooling_degree_days)"}
                       </p>
                     </div>

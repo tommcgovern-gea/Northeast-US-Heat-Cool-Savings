@@ -148,11 +148,12 @@ export async function GET(req: NextRequest) {
     const recentMessagesResult = await sql`
       SELECT m.id, m.message_type, m.channel, m.sent_at, m.delivered, m.delivery_status,
         b.name as building_name,
-        r.name as recipient_name,
+        COALESCE(u.name, r.name) as recipient_name,
         (SELECT COUNT(*) FROM photo_uploads p WHERE p.message_id = m.id) as upload_count
       FROM messages m
       JOIN buildings b ON b.id = m.building_id
-      JOIN recipients r ON r.id = m.recipient_id
+      LEFT JOIN users u ON u.id = m.user_id
+      LEFT JOIN recipients r ON r.id = m.recipient_id
       ORDER BY m.created_at DESC
       LIMIT 20
     `;
