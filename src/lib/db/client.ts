@@ -188,6 +188,28 @@ export const db = {
     return toRows(result) as Recipient[];
   },
 
+  /** Building users (role BUILDING) with this building in building_ids. Returns recipient-like shape. */
+  async getBuildingUsers(buildingId: string, includeInactive: boolean = false): Promise<Array<{ id: string; name: string | null; email: string | null; phone: string | null; preference: string; is_active: boolean }>> {
+    const result = await sql`
+      SELECT id, name, email, phone, COALESCE(preference, 'email') AS preference, COALESCE(is_active, true) AS is_active
+      FROM users
+      WHERE role = 'BUILDING'
+        AND building_ids IS NOT NULL
+        AND ${buildingId}::uuid = ANY(building_ids)
+        AND (${includeInactive} OR COALESCE(is_active, true) = true)
+      ORDER BY created_at
+    `;
+    const rows = toRows(result);
+    return rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      phone: r.phone,
+      preference: r.preference || 'email',
+      is_active: !!r.is_active,
+    }));
+  },
+
   async getRecipientById(id: string): Promise<Recipient | null> {
     const result = await sql`
       SELECT * FROM recipients WHERE id = ${id}
@@ -294,7 +316,7 @@ export const db = {
     const result = await sql`
       SELECT * FROM temperature_snapshots
       WHERE city_id = ${cityId}
-        AND recorded_at >= NOW() - (INTERVAL '1 hour' * ${hours})
+        AND recorded_at >= NOW() - make_interval(hours => ${hours})
       ORDER BY recorded_at DESC
     `;
     return toRows(result) as TemperatureSnapshot[];
@@ -312,13 +334,87 @@ export const db = {
     email: string;
     password_hash: string;
     role: 'ADMIN' | 'STAFF' | 'BUILDING';
-    building_id?: string | null;
+    building_ids?: string[] | null;
+    name?: string | null;
+    phone?: string | null;
+    preference?: 'email' | 'sms' | 'both';
+    is_active?: boolean;
   }): Promise<any> {
+    const ids = (data.building_ids && data.building_ids.length > 0) ? data.building_ids : [];
     const result = await sql`
-      INSERT INTO users (email, password_hash, role, building_id)
-      VALUES (${data.email}, ${data.password_hash}, ${data.role}, ${data.building_id || null})
+      INSERT INTO users (email, password_hash, role, building_ids, name, phone, preference, is_active)
+      VALUES (
+        ${data.email},
+        ${data.password_hash},
+        ${data.role},
+        ${ids},
+        ${data.name ?? null},
+        ${data.phone ?? null},
+        ${data.preference ?? 'email'},
+        ${data.is_active ?? true}
+      )
       RETURNING *
     `;
     return toRows(result)[0];
+  },
+
+  async getUserById(id: string): Promise<any | null> {
+    const result = await sql`SELECT * FROM users WHERE id = ${id}`;
+    const rows = toRows(result);
+    return rows[0] ?? null;
+  },
+
+  async updateUser(id: string, data: { name?: string | null; email?: string; phone?: string | null; preference?: string; is_active?: boolean; building_ids?: string[] }): Promise<any | null> {
+    const user = await this.getUserById(id);
+    if (!user) return null;
+
+    const name = data.name !== undefined ? data.name : user.name;
+    const email = data.email !== undefined ? data.email : user.email;
+    const phone = data.phone !== undefined ? data.phone : user.phone;
+    const preference = data.preference !== undefined ? data.preference : (user.preference || 'email');
+    const is_active = data.is_active !== undefined ? data.is_active : (user.is_active !== false);
+    const building_ids = data.building_ids !== undefined ? data.building_ids : ((user.building_ids || []) as string[]).filter(Boolean);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validIds = building_ids.filter((id) => typeof id === "string" && uuidRegex.test(id.trim()));
+    const arrLiteral = validIds.length ? `{"${validIds.join('","')}"}` : "{}";
+
+    const result = await sql`
+      UPDATE users
+      SET name = ${name}, email = ${email}, phone = ${phone}, preference = ${preference}, is_active = ${is_active},
+          building_ids = ${arrLiteral}::uuid[],
+          updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    const rows = toRows(result);
+    return rows[0] ?? null;
+  },
+
+  /** Add building to a BUILDING user's building_ids; create user if not exists (for invite flow). */
+  async addBuildingToUser(userId: string, buildingId: string): Promise<any | null> {
+    const user = await this.getUserById(userId);
+    if (!user || user.role !== 'BUILDING') return null;
+    const current = (user.building_ids || []) as string[];
+    if (current.includes(buildingId)) return user;
+    const next = [...current, buildingId];
+    return this.updateUser(userId, { building_ids: next });
+  },
+
+  /** Remove building from BUILDING user's building_ids; delete user if no buildings left. */
+  async removeBuildingFromUser(userId: string, buildingId: string): Promise<any | null> {
+    const user = await this.getUserById(userId);
+    if (!user || user.role !== 'BUILDING') return null;
+    const current = ((user.building_ids || []) as string[]).filter(Boolean);
+    const next = current.filter((id) => id !== buildingId);
+    if (next.length === 0) {
+      await this.deleteUser(userId);
+      return { deleted: true };
+    }
+    return this.updateUser(userId, { building_ids: next });
+  },
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await sql`DELETE FROM users WHERE id = ${id} RETURNING id`;
+    return toRows(result).length > 0;
   },
 };

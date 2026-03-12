@@ -175,9 +175,9 @@ export default function TemplatesPage() {
 
   const getDefaultTemplate = (type: string): string => {
     const defaults: Record<string, string> = {
-      alert: `⚠️ SUDDEN TEMPERATURE ALERT\n\nTemperature is expected to change by {{temperatureChange}}°F in the next {{timeWindow}} hours ({{currentTemp}}°F → {{futureTemp}}°F).\n\nPlease adjust heating/cooling settings accordingly.\n\nUpload compliance photo: {{uploadUrl}}`,
-      daily_summary: `📊 Daily Temperature Summary\n\nAverage: {{averageTemp}}°F\nHigh: {{maxTemp}}°F\nLow: {{minTemp}}°F\nChange from yesterday: {{temperatureChange}}°F\n\nPlease confirm your settings adjustment.\n\nUpload compliance photo: {{uploadUrl}}`,
-      warning: `⚠️ COMPLIANCE WARNING\n\nYou have not uploaded a compliance photo for the message sent {{hoursAgo}} hours ago.\n\nPlease upload your photo immediately. Failure to comply may void your guarantee.\n\nUpload link: {{uploadUrl}}`,
+      alert: `⚠️ SUDDEN TEMPERATURE ALERT\n\nTemperature is expected to change by {{temperatureChange}}°F in the next {{timeWindow}} hours ({{currentTemp}}°F → {{futureTemp}}°F).\n\nPlease adjust heating/cooling settings accordingly.\n\nUpload photo or BMS record: {{uploadUrl}}`,
+      daily_summary: `📊 Daily Temperature Summary\n\nAverage: {{averageTemp}}°F\nHigh: {{maxTemp}}°F\nLow: {{minTemp}}°F\nChange from yesterday: {{temperatureChange}}°F\n\nPlease confirm your settings adjustment.\n\nUpload photo or BMS record: {{uploadUrl}}`,
+      warning: `⚠️ COMPLIANCE WARNING\n\nYou have not uploaded compliance documentation (photo or BMS record) for the message sent {{hoursAgo}} hours ago.\n\nPlease upload immediately. Failure to comply may void your guarantee.\n\nUpload link: {{uploadUrl}}`,
     };
     return defaults[type] || "";
   };
@@ -201,7 +201,7 @@ export default function TemplatesPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Message Templates</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-800">
             Customize message templates per city
           </p>
         </div>
@@ -215,7 +215,7 @@ export default function TemplatesPage() {
         <select
           value={selectedCity}
           onChange={(e) => setSelectedCity(e.target.value)}
-          className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         >
           <option value="">Select a city</option>
           {cities.map((city) => (
@@ -265,7 +265,7 @@ export default function TemplatesPage() {
                           </label>
                           <input
                             type="text"
-                            className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                             value={formData.subject}
                             onChange={(e) =>
                               setFormData({ ...formData, subject: e.target.value })
@@ -278,13 +278,13 @@ export default function TemplatesPage() {
                           </label>
                           <textarea
                             rows={10}
-                            className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                            className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 font-mono text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                             value={formData.content}
                             onChange={(e) =>
                               setFormData({ ...formData, content: e.target.value })
                             }
                           />
-                          <p className="mt-2 text-xs text-gray-500">
+                          <p className="mt-2 text-xs text-gray-800">
                             Available variables: {`{{temperatureChange}}`}, {`{{timeWindow}}`}, {`{{currentTemp}}`}, {`{{futureTemp}}`}, {`{{averageTemp}}`}, {`{{minTemp}}`}, {`{{maxTemp}}`}, {`{{cityName}}`}, {`{{buildingName}}`}, {`{{uploadUrl}}`}
                           </p>
                         </div>
@@ -306,7 +306,7 @@ export default function TemplatesPage() {
                     ) : (
                       <div>
                         <div className="bg-gray-50 rounded-md p-4 mb-4">
-                          <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
+                          <pre className="whitespace-pre-wrap text-sm text-gray-900 font-mono">
                             {template.content}
                           </pre>
                         </div>
@@ -328,7 +328,7 @@ export default function TemplatesPage() {
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-800">
                     No template created. Default template will be used.
                   </p>
                 )}

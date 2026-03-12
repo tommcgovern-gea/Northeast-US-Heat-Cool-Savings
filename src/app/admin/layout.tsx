@@ -15,7 +15,6 @@ export default function AdminLayout({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Skip auth check for login page
     if (pathname === "/admin/login") {
       setLoading(false);
       return;
@@ -29,10 +28,17 @@ export default function AdminLayout({
 
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
-      // Check if token is expired
       if (payload.exp && payload.exp * 1000 < Date.now()) {
         localStorage.removeItem("token");
         router.push("/admin/login");
+        return;
+      }
+      if (payload.role === "BUILDING") {
+        router.push("/building");
+        return;
+      }
+      if (payload.role === "STAFF" && pathname === "/admin") {
+        router.push("/admin/energy");
         return;
       }
       setUser(payload);
@@ -66,21 +72,30 @@ export default function AdminLayout({
     return null;
   }
 
-  const navigation = [
+  const isAdmin = user.role === "ADMIN";
+  const isStaff = user.role === "STAFF";
+
+  const adminOnlyNav = [
     { name: "Dashboard", href: "/admin", icon: "📊" },
     { name: "Cities", href: "/admin/cities", icon: "🏙️" },
     { name: "Buildings", href: "/admin/buildings", icon: "🏢" },
     { name: "Recipients", href: "/admin/recipients", icon: "👥" },
-    // { name: "Templates", href: "/admin/templates", icon: "📝" },
-    // { name: "Compliance", href: "/admin/compliance", icon: "✅" },
-    // { name: "Messages", href: "/admin/messages", icon: "💬" },
-    // { name: "Energy Reports", href: "/admin/energy", icon: "⚡" },
+    { name: "Templates", href: "/admin/templates", icon: "📝" },
+    { name: "Compliance", href: "/admin/compliance", icon: "✅" },
+    { name: "Message Logs", href: "/admin/messages", icon: "📋" },
+    { name: "Energy Reports", href: "/admin/energy", icon: "⚡" },
   ];
+
+  const staffNav = [
+    { name: "Energy Reports", href: "/admin/energy", icon: "⚡" },
+  ];
+
+  const navigation = isStaff ? staffNav : adminOnlyNav;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
@@ -98,7 +113,7 @@ export default function AdminLayout({
                       className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                         isActive
                           ? "border-blue-500 text-gray-900"
-                          : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                          : "border-transparent text-gray-700 hover:border-gray-300 hover:text-gray-900"
                       }`}
                     >
                       <span className="mr-2">{item.icon}</span>
@@ -112,12 +127,9 @@ export default function AdminLayout({
               <span className="text-sm text-gray-700 mr-4">
                 {user.email || `Role: ${user.role}`}
               </span>
-              <span className="text-xs text-gray-500 mr-4">
-                ({user.role})
-              </span>
               <button
                 onClick={handleLogout}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md cursor-pointer transition-colors"
               >
                 Logout
               </button>
@@ -126,7 +138,7 @@ export default function AdminLayout({
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto w-full min-h-screen px-4 sm:px-6 lg:px-8 py-6">
         {children}
       </main>
     </div>

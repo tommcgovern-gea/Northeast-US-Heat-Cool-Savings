@@ -3,18 +3,18 @@
 import { useEffect, useState } from "react";
 
 interface ComplianceData {
-  overallComplianceRate: number;
+  overallComplianceRate: number | null;
   buildings: Array<{
     buildingId: string;
     buildingName: string;
-    complianceRate: number;
+    complianceRate: number | null;
   }>;
   days: number;
 }
 
 interface BuildingMessages {
   buildingId: string;
-  complianceRate: number;
+  complianceRate: number | null;
   days: number;
   messages: Array<{
     id: string;
@@ -100,7 +100,7 @@ export default function CompliancePage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Compliance Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-gray-800">
             Track photo upload compliance across buildings
           </p>
         </div>
@@ -109,7 +109,7 @@ export default function CompliancePage() {
           <select
             value={days}
             onChange={(e) => setDays(parseInt(e.target.value))}
-            className="border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           >
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
@@ -133,14 +133,16 @@ export default function CompliancePage() {
             </h2>
             <div className="flex items-center space-x-4">
               <div className="text-4xl font-bold text-gray-900">
-                {overview.overallComplianceRate.toFixed(1)}%
+                {overview.overallComplianceRate != null
+                  ? `${overview.overallComplianceRate.toFixed(1)}%`
+                  : "N/A"}
               </div>
               <div className="flex-1">
                 <div className="w-full bg-gray-200 rounded-full h-4">
                   <div
                     className="bg-green-600 h-4 rounded-full"
                     style={{
-                      width: `${overview.overallComplianceRate}%`,
+                      width: overview.overallComplianceRate != null ? `${overview.overallComplianceRate}%` : "0%",
                     }}
                   ></div>
                 </div>
@@ -174,20 +176,26 @@ export default function CompliancePage() {
                       <div className="flex items-center space-x-4">
                         <div className="text-right">
                           <p className="text-lg font-bold text-gray-900">
-                            {building.complianceRate.toFixed(1)}%
+                            {building.complianceRate != null
+                              ? `${building.complianceRate.toFixed(1)}%`
+                              : "N/A"}
                           </p>
                         </div>
                         <div className="w-24">
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div
                               className={`h-2 rounded-full ${
-                                building.complianceRate >= 80
+                                building.complianceRate == null
+                                  ? "bg-gray-400"
+                                  : building.complianceRate >= 80
                                   ? "bg-green-600"
                                   : building.complianceRate >= 50
                                   ? "bg-yellow-600"
                                   : "bg-red-600"
                               }`}
-                              style={{ width: `${building.complianceRate}%` }}
+                              style={{
+                                width: building.complianceRate != null ? `${building.complianceRate}%` : "0%",
+                              }}
                             ></div>
                           </div>
                         </div>
@@ -210,16 +218,16 @@ export default function CompliancePage() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                           Type
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                           Sent At
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                           Delivery
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                           Upload
                         </th>
                       </tr>
@@ -230,7 +238,7 @@ export default function CompliancePage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {message.messageType.replace("_", " ")}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                             {new Date(message.sentAt).toLocaleString()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">

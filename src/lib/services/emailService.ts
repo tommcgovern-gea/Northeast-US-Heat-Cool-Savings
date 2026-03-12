@@ -45,10 +45,11 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
       messageId: response.headers['x-message-id'] as string,
     };
   } catch (error: any) {
-    console.error('Error sending email:', error);
+    const msg = error?.response?.body?.errors?.[0]?.message ?? error?.message ?? 'Failed to send email';
+    console.error('Error sending email:', msg);
     return {
       success: false,
-      error: error.message || 'Failed to send email',
+      error: msg,
     };
   }
 }

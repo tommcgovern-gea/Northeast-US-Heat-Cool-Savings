@@ -55,25 +55,21 @@ export async function GET(req: NextRequest) {
     const failedMessagesRows = toRows(failedMessagesResult);
     const failedMessages = parseInt(String(failedMessagesRows[0]?.total ?? 0), 10);
 
-    const complianceData = await Promise.all(
-      activeBuildings.map(async (building) => {
-        let rate = 0;
-        try {
-          rate = await complianceService.getBuildingComplianceRate(building.id, days);
-        } catch {
-          // Tables may not exist
-        }
-        return {
-          buildingId: building.id,
-          buildingName: building.name,
-          complianceRate: rate,
-        };
-      })
-    );
+    const complianceData = await (async () => {
+      const ids = activeBuildings.map((b) => b.id);
+      const rateMap = await complianceService.getBuildingComplianceRatesBatch(ids, days);
+      return activeBuildings.map((building) => ({
+        buildingId: building.id,
+        buildingName: building.name,
+        complianceRate: rateMap.get(building.id) ?? null,
+      }));
+    })();
 
-    const overallComplianceRate = complianceData.length > 0
-      ? complianceData.reduce((sum, b) => sum + b.complianceRate, 0) / complianceData.length
-      : 100;
+    const buildingsWithData = complianceData.filter((b) => b.complianceRate != null);
+    const overallComplianceRate =
+      buildingsWithData.length > 0
+        ? buildingsWithData.reduce((sum, b) => sum + (b.complianceRate ?? 0), 0) / buildingsWithData.length
+        : null;
 
     const recentAlertsResult = await sql`
       SELECT 
@@ -85,23 +81,30 @@ export async function GET(req: NextRequest) {
       LIMIT 20
     `;
 
-    const energyReportsResult = await sql`
-      SELECT 
-        er.*,
-        b.name as building_name
-      FROM energy_reports er
-      JOIN buildings b ON b.id = er.building_id
-      ORDER BY er.year DESC, er.month DESC
-      LIMIT 10
-    `;
-
-    const totalEnergySavingsResult = await sql`
-      SELECT 
-        SUM(savings_kbtu) as total_savings,
-        AVG(savings_percentage) as avg_savings_percentage
-      FROM energy_reports
-      WHERE year >= EXTRACT(YEAR FROM NOW()) - 1
-    `;
+    let energyReportsRows: any[] = [];
+    let totalEnergyRows: any[] = [];
+    try {
+      const energyReportsResult = await sql`
+        SELECT 
+          er.*,
+          b.name as building_name
+        FROM energy_reports er
+        JOIN buildings b ON b.id = er.building_id
+        ORDER BY er.year DESC, er.month DESC
+        LIMIT 10
+      `;
+      const totalEnergySavingsResult = await sql`
+        SELECT 
+          SUM(savings_kbtu) as total_savings,
+          AVG(savings_percentage) as avg_savings_percentage
+        FROM energy_reports
+        WHERE year >= EXTRACT(YEAR FROM NOW()) - 1
+      `;
+      energyReportsRows = toRows(energyReportsResult);
+      totalEnergyRows = toRows(totalEnergySavingsResult);
+    } catch {
+      // energy_reports table may not exist (milestone 4 schema)
+    }
 
     const cityStats = await Promise.all(
       cities.map(async (city) => {
@@ -115,20 +118,46 @@ export async function GET(req: NextRequest) {
         const cityAlertsRows = toRows(cityAlertsResult);
         const cityTotalAlerts = parseInt(String(cityAlertsRows[0]?.total ?? 0), 10);
 
+        const tempTrendResult = await sql`
+          SELECT recorded_at, temperature_f
+          FROM temperature_snapshots
+          WHERE city_id = ${city.id}
+            AND recorded_at >= NOW() - INTERVAL '7 days'
+          ORDER BY recorded_at ASC
+          LIMIT 100
+        `;
+        const tempRows = toRows(tempTrendResult);
+
         return {
           cityId: city.id,
           cityName: city.name,
           buildingCount: cityBuildings.length,
           activeBuildingCount: cityBuildings.filter(b => b.is_active && !b.is_paused).length,
           totalAlerts: cityTotalAlerts,
+          temperatureTrend: tempRows.map((r: any) => ({
+            at: r.recorded_at,
+            tempF: Number(r.temperature_f),
+          })),
         };
       })
     );
 
     const recentAlertsRows = toRows(recentAlertsResult);
-    const energyReportsRows = toRows(energyReportsResult);
-    const totalEnergyRows = toRows(totalEnergySavingsResult);
     const energyFirst = totalEnergyRows[0];
+
+    const recentMessagesResult = await sql`
+      SELECT m.id, m.message_type, m.channel, m.sent_at, m.delivered, m.delivery_status,
+        b.name as building_name,
+        COALESCE(u.name, r.name) as recipient_name,
+        (SELECT COUNT(*) FROM photo_uploads p WHERE p.message_id = m.id) as upload_count
+      FROM messages m
+      JOIN buildings b ON b.id = m.building_id
+      LEFT JOIN users u ON u.id = m.user_id
+      LEFT JOIN recipients r ON r.id = m.recipient_id
+      ORDER BY m.created_at DESC
+      LIMIT 20
+    `;
+    const recentMessagesRows = toRows(recentMessagesResult);
 
     return NextResponse.json({
       overview: {
@@ -139,7 +168,7 @@ export async function GET(req: NextRequest) {
         totalMessages,
         totalAlerts,
         failedMessages,
-        overallComplianceRate: Math.round(overallComplianceRate * 10) / 10,
+        overallComplianceRate: overallComplianceRate != null ? Math.round(overallComplianceRate * 10) / 10 : null,
         days,
       },
       cityStats,
@@ -165,6 +194,17 @@ export async function GET(req: NextRequest) {
         totalSavingsKBTU: energyFirst?.total_savings != null ? Number(energyFirst.total_savings) : 0,
         avgSavingsPercentage: energyFirst?.avg_savings_percentage != null ? Number(energyFirst.avg_savings_percentage) : 0,
       },
+      recentMessages: recentMessagesRows.map((m: any) => ({
+        id: m.id,
+        messageType: m.message_type,
+        channel: m.channel,
+        sentAt: m.sent_at,
+        delivered: !!m.delivered,
+        deliveryStatus: m.delivery_status,
+        buildingName: m.building_name,
+        recipientName: m.recipient_name,
+        hasUpload: parseInt(String(m.upload_count), 10) > 0,
+      })),
     });
   } catch (error) {
     console.error('Error fetching admin dashboard:', error);

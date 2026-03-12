@@ -37,7 +37,7 @@ export default function WeatherPage() {
     }, []);
 
     return (
-        <div className="py-10 space-y-10 max-w-6xl mx-auto px-4">
+        <div className="py-10 space-y-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="space-y-1">
                     <div className="flex items-center gap-2">

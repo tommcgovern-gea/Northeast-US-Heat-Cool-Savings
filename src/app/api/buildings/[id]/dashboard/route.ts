@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken, TokenPayload } from '@/lib/auth';
+import { verifyToken, TokenPayload, canAccessBuilding } from '@/lib/auth';
 import { db } from '@/lib/db/client';
 import { complianceService } from '@/lib/services/complianceService';
 import { sql } from '@/lib/db/client';
@@ -34,65 +34,66 @@ export async function GET(
 
     const buildingData = building[0];
 
-    if (user.role === 'BUILDING' && user.buildingId !== params.id) {
+    if (user.role === 'BUILDING' && !canAccessBuilding(user, params.id)) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     const days = parseInt(req.nextUrl.searchParams.get('days') || '30');
 
-    let complianceRate = 0;
-    try {
-      complianceRate = await complianceService.getBuildingComplianceRate(params.id, days);
-    } catch {
-      // Tables may not exist
-    }
-
-    const messagesResult = await sql`
-      SELECT 
-        m.*,
-        COUNT(p.id) as upload_count,
-        MAX(p.uploaded_at) as last_upload
-      FROM messages m
-      LEFT JOIN photo_uploads p ON p.message_id = m.id
-      WHERE m.building_id = ${params.id}
-        AND m.message_type IN ('alert', 'daily_summary')
-        AND m.sent_at >= NOW() - (INTERVAL '1 day' * ${days})
-      GROUP BY m.id
-      ORDER BY m.sent_at DESC
-      LIMIT 50
-    `;
-
-    const alertsResult = await sql`
-      SELECT COUNT(*) as total_alerts
-      FROM messages
-      WHERE building_id = ${params.id}
-        AND message_type = 'alert'
-        AND sent_at >= NOW() - (INTERVAL '1 day' * ${days})
-        AND delivered = true
-    `;
-
-    const recipientsResult = await sql`
-      SELECT COUNT(*) as total_recipients
-      FROM recipients
-      WHERE building_id = ${params.id}
-        AND is_active = true
-    `;
-
-    const recentUploadsResult = await sql`
-      SELECT p.*, m.message_type, m.sent_at
-      FROM photo_uploads p
-      JOIN messages m ON m.id = p.message_id
-      WHERE p.building_id = ${params.id}
-      ORDER BY p.uploaded_at DESC
-      LIMIT 10
-    `;
-
-    const energyReportResult = await sql`
-      SELECT * FROM energy_reports
-      WHERE building_id = ${params.id}
-      ORDER BY year DESC, month DESC
-      LIMIT 1
-    `;
+    const [
+      complianceRate,
+      messagesResult,
+      alertsResult,
+      recipientsResult,
+      recentUploadsResult,
+      energyReportResult,
+    ] = await Promise.all([
+      complianceService.getBuildingComplianceRate(params.id, days).catch(() => null),
+      sql`
+        SELECT 
+          m.*,
+          COUNT(p.id) as upload_count,
+          MAX(p.uploaded_at) as last_upload
+        FROM messages m
+        LEFT JOIN photo_uploads p ON p.message_id = m.id
+        WHERE m.building_id = ${params.id}
+          AND m.message_type IN ('alert', 'daily_summary')
+          AND m.sent_at >= NOW() - (INTERVAL '1 day' * ${days})
+        GROUP BY m.id
+        ORDER BY m.sent_at DESC
+        LIMIT 50
+      `,
+      sql`
+        SELECT COUNT(*) as total_alerts
+        FROM messages
+        WHERE building_id = ${params.id}
+          AND message_type = 'alert'
+          AND sent_at >= NOW() - (INTERVAL '1 day' * ${days})
+          AND delivered = true
+      `,
+      sql`
+        SELECT COUNT(*) as total_recipients
+        FROM users u
+        WHERE u.role = 'BUILDING'
+          AND u.building_ids IS NOT NULL
+          AND ${params.id}::uuid = ANY(u.building_ids)
+          AND (u.is_active IS NULL OR u.is_active = true)
+      `,
+      sql`
+        SELECT p.*, m.message_type, m.sent_at
+        FROM photo_uploads p
+        JOIN messages m ON m.id = p.message_id
+        WHERE p.building_id = ${params.id}
+        ORDER BY p.uploaded_at DESC
+        LIMIT 10
+      `,
+      sql`
+        SELECT * FROM energy_reports
+        WHERE building_id = ${params.id}
+        ORDER BY year DESC, month DESC
+        LIMIT 1
+      `,
+    ]);
 
     const messagesRows = toRows(messagesResult);
     const alertsRows = toRows(alertsResult);
@@ -118,7 +119,7 @@ export async function GET(
         cityId: buildingData.city_id,
       },
       stats: {
-        complianceRate: Math.round(complianceRate * 10) / 10,
+        complianceRate: complianceRate != null ? Math.round(complianceRate * 10) / 10 : null,
         totalAlerts: parseInt(String(alertsRows[0]?.total_alerts ?? 0), 10),
         totalRecipients: parseInt(String(recipientsRows[0]?.total_recipients ?? 0), 10),
         days,

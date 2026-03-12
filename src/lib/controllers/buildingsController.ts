@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, sql } from "@/lib/db/client";
-import { verifyToken, TokenPayload } from "@/lib/auth";
+import { verifyToken, TokenPayload, canAccessBuilding } from "@/lib/auth";
 import { complianceService } from "@/lib/services/complianceService";
 
 export const getBuildings = async (req: NextRequest) => {
@@ -19,10 +19,18 @@ export const getBuildings = async (req: NextRequest) => {
 
     let buildings: any[];
 
-    if (user.role === "BUILDING" && user.buildingId) {
-      buildings = await db.getBuildings(undefined, user.buildingId);
-    } else if (user.role === "ADMIN" || user.role === "STAFF") {
+    if (user.role === "ADMIN" || user.role === "STAFF") {
       buildings = await db.getBuildings();
+    } else if (user.role === "BUILDING") {
+      const buildingIds = (user.buildingIds && user.buildingIds.length) ? user.buildingIds : (user.buildingId ? [user.buildingId] : []);
+      if (buildingIds.length === 0) {
+        return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+      }
+      buildings = [];
+      for (const bid of buildingIds) {
+        const b = await db.getBuildings(undefined, bid);
+        if (b.length) buildings.push(b[0]);
+      }
     } else {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
@@ -30,12 +38,12 @@ export const getBuildings = async (req: NextRequest) => {
     const list = Array.isArray(buildings) ? buildings : [];
     const responseData = await Promise.all(
       list.map(async (b) => {
-        const recipients = await db.getRecipients(b.id);
-        let complianceRate = 0;
+        const recipients = await db.getBuildingUsers(b.id);
+        let complianceRate: number | null = null;
         try {
           complianceRate = await complianceService.getBuildingComplianceRate(b.id, 30);
         } catch {
-          // Tables may not exist yet; use 0
+          // Tables may not exist yet
         }
         const city = await db.getCityById(b.city_id);
 
@@ -48,7 +56,7 @@ export const getBuildings = async (req: NextRequest) => {
           isActive: b.is_active,
           isPaused: b.is_paused,
           recipientCount: recipients.length,
-          complianceRate: Math.round(complianceRate * 10) / 10,
+          complianceRate: complianceRate != null ? Math.round(complianceRate * 10) / 10 : null,
         };
       })
     );
@@ -125,12 +133,12 @@ export const getBuildingById = async (req: NextRequest, id: string) => {
 
     const building = buildings[0];
 
-    if (user.role === "BUILDING" && user.buildingId !== building.id) {
+    if (user.role !== "ADMIN" && user.role !== "STAFF" && user.role === "BUILDING" && !canAccessBuilding(user, building.id)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
     const city = await db.getCityById(building.city_id);
-    const recipients = await db.getRecipients(building.id);
+    const recipients = await db.getBuildingUsers(building.id);
     const complianceRate = await complianceService.getBuildingComplianceRate(building.id, 30);
 
     return NextResponse.json({
@@ -147,7 +155,7 @@ export const getBuildingById = async (req: NextRequest, id: string) => {
           preference: r.preference,
           isActive: r.is_active,
         })),
-        complianceRate: Math.round(complianceRate * 10) / 10,
+        complianceRate: complianceRate != null ? Math.round(complianceRate * 10) / 10 : null,
         isPaused: building.is_paused,
         isActive: building.is_active,
     });

@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
 export default function BuildingLayout({
   children,
@@ -14,12 +13,12 @@ export default function BuildingLayout({
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Skip auth check for login page
-  if (pathname === "/building/login") {
-    return <>{children}</>;
-  }
-
   useEffect(() => {
+    if (pathname === "/building/login") {
+      setLoading(false);
+      return;
+    }
+
     const token = localStorage.getItem("token");
     if (!token) {
       router.push("/building/login");
@@ -28,20 +27,16 @@ export default function BuildingLayout({
 
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
-      // Check if token is expired
       if (payload.exp && payload.exp * 1000 < Date.now()) {
         localStorage.removeItem("token");
         router.push("/building/login");
         return;
       }
-
-      // Only allow BUILDING role users
       if (payload.role !== "BUILDING") {
         localStorage.removeItem("token");
         router.push("/building/login");
         return;
       }
-
       setUser(payload);
     } catch {
       localStorage.removeItem("token");
@@ -50,6 +45,10 @@ export default function BuildingLayout({
       setLoading(false);
     }
   }, [router, pathname]);
+
+  if (pathname === "/building/login") {
+    return <>{children}</>;
+  }
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -84,7 +83,7 @@ export default function BuildingLayout({
               </span>
               <button
                 onClick={handleLogout}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md cursor-pointer transition-colors"
               >
                 Logout
               </button>
@@ -93,7 +92,7 @@ export default function BuildingLayout({
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {children}
       </main>
     </div>

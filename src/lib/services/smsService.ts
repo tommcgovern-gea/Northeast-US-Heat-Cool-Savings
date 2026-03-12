@@ -12,6 +12,11 @@ export interface SMSResult {
   error?: string;
 }
 
+/** Normalize phone: remove spaces, ensure E.164. */
+function normalizePhone(phone: string): string {
+  return phone.replace(/\s/g, '');
+}
+
 export async function sendSMS(to: string, message: string): Promise<SMSResult> {
   if (!client || !fromNumber) {
     console.warn('Twilio not configured, SMS not sent');
@@ -21,11 +26,20 @@ export async function sendSMS(to: string, message: string): Promise<SMSResult> {
     };
   }
 
+  const toNormalized = normalizePhone(to);
+  const fromNormalized = normalizePhone(fromNumber);
+  if (toNormalized === fromNormalized) {
+    return {
+      success: false,
+      error: 'Cannot send SMS to the same number as the Twilio sender. Use a different recipient phone.',
+    };
+  }
+
   try {
     const result = await client.messages.create({
       body: message,
       from: fromNumber,
-      to: to,
+      to: toNormalized,
     });
 
     return {
@@ -33,10 +47,11 @@ export async function sendSMS(to: string, message: string): Promise<SMSResult> {
       messageId: result.sid,
     };
   } catch (error: any) {
-    console.error('Error sending SMS:', error);
+    const msg = error?.message ?? 'Failed to send SMS';
+    console.error('Error sending SMS:', msg);
     return {
       success: false,
-      error: error.message || 'Failed to send SMS',
+      error: msg,
     };
   }
 }

@@ -1,4 +1,4 @@
-import { db, sql } from '@/lib/db/client';
+import { db, sql, toRows } from '@/lib/db/client';
 
 export interface UtilityConsumption {
   id: string;
@@ -99,7 +99,7 @@ export class EnergyService {
       RETURNING *
     `;
 
-    return result.rows[0] as UtilityConsumption;
+    return toRows(result)[0] as UtilityConsumption;
   }
 
   async uploadDegreeDays(
@@ -125,7 +125,7 @@ export class EnergyService {
       RETURNING *
     `;
 
-    return result.rows[0] as DegreeDays;
+    return toRows(result)[0] as DegreeDays;
   }
 
   async calculateBaseline(
@@ -145,11 +145,12 @@ export class EnergyService {
       ORDER BY uc.year DESC
     `;
 
-    if (utilityData.rows.length < 3) {
+    const utilityRows = toRows(utilityData);
+    if (utilityRows.length < 3) {
       return { heating: null, cooling: null };
     }
 
-    const cityId = utilityData.rows[0].city_id;
+    const cityId = utilityRows[0].city_id;
     const degreeDaysData = await sql`
       SELECT * FROM degree_days
       WHERE city_id = ${cityId}
@@ -158,8 +159,9 @@ export class EnergyService {
       ORDER BY year DESC
     `;
 
-    const hddMap = new Map(degreeDaysData.rows.map(dd => [`${dd.year}-${dd.month}`, dd.heating_degree_days]));
-    const cddMap = new Map(degreeDaysData.rows.map(dd => [`${dd.year}-${dd.month}`, dd.cooling_degree_days]));
+    const degreeDaysRows = toRows(degreeDaysData);
+    const hddMap = new Map(degreeDaysRows.map(dd => [`${dd.year}-${dd.month}`, dd.heating_degree_days]));
+    const cddMap = new Map(degreeDaysRows.map(dd => [`${dd.year}-${dd.month}`, dd.cooling_degree_days]));
 
     let heatingSum = 0;
     let heatingCount = 0;
@@ -168,7 +170,7 @@ export class EnergyService {
     let minYear = Infinity;
     let maxYear = -Infinity;
 
-    for (const utility of utilityData.rows) {
+    for (const utility of utilityRows) {
       const key = `${utility.year}-${utility.month}`;
       const hdd = hddMap.get(key);
       const cdd = cddMap.get(key);
@@ -233,7 +235,7 @@ export class EnergyService {
       RETURNING *
     `;
 
-    return result.rows[0] as EnergyBaseline;
+    return toRows(result)[0] as EnergyBaseline;
   }
 
   async calculateMonthlyComparison(
@@ -249,7 +251,8 @@ export class EnergyService {
       LIMIT 1
     `;
 
-    if (utility.rows.length === 0) {
+    const utilityRows = toRows(utility);
+    if (utilityRows.length === 0) {
       return null;
     }
 
@@ -265,13 +268,14 @@ export class EnergyService {
       LIMIT 1
     `;
 
-    if (degreeDays.rows.length === 0) {
+    const degreeDaysRows = toRows(degreeDays);
+    if (degreeDaysRows.length === 0) {
       return null;
     }
 
-    const hdd = Number(degreeDays.rows[0].heating_degree_days);
-    const cdd = Number(degreeDays.rows[0].cooling_degree_days);
-    const totalKBTU = Number(utility.rows[0].total_kbtu);
+    const hdd = Number(degreeDaysRows[0].heating_degree_days);
+    const cdd = Number(degreeDaysRows[0].cooling_degree_days);
+    const totalKBTU = Number(utilityRows[0].total_kbtu);
 
     const consumptionPerHDD = hdd > 0 ? totalKBTU / hdd : 0;
     const consumptionPerCDD = cdd > 0 ? totalKBTU / cdd : 0;
@@ -292,11 +296,13 @@ export class EnergyService {
       LIMIT 1
     `;
 
-    const baselineHDD = heatingBaseline.rows.length > 0
-      ? Number(heatingBaseline.rows[0].avg_consumption_per_degree_day)
+    const heatingRows = toRows(heatingBaseline);
+    const coolingRows = toRows(coolingBaseline);
+    const baselineHDD = heatingRows.length > 0
+      ? Number(heatingRows[0].avg_consumption_per_degree_day)
       : null;
-    const baselineCDD = coolingBaseline.rows.length > 0
-      ? Number(coolingBaseline.rows[0].avg_consumption_per_degree_day)
+    const baselineCDD = coolingRows.length > 0
+      ? Number(coolingRows[0].avg_consumption_per_degree_day)
       : null;
 
     let savingsPercentage = 0;
@@ -321,10 +327,10 @@ export class EnergyService {
       baselineConsumptionPerCDD: baselineCDD ? Math.round(baselineCDD * 10000) / 10000 : 0,
       savingsPercentage: Math.round(savingsPercentage * 100) / 100,
       savingsKBTU: Math.round(savingsKBTU * 100) / 100,
-      electricKWH: utility.rows[0].electric_kwh ? Number(utility.rows[0].electric_kwh) : null,
-      gasTherms: utility.rows[0].gas_therms ? Number(utility.rows[0].gas_therms) : null,
-      fuelOilGallons: utility.rows[0].fuel_oil_gallons ? Number(utility.rows[0].fuel_oil_gallons) : null,
-      districtSteamMBTU: utility.rows[0].district_steam_mbtu ? Number(utility.rows[0].district_steam_mbtu) : null,
+      electricKWH: utilityRows[0].electric_kwh ? Number(utilityRows[0].electric_kwh) : null,
+      gasTherms: utilityRows[0].gas_therms ? Number(utilityRows[0].gas_therms) : null,
+      fuelOilGallons: utilityRows[0].fuel_oil_gallons ? Number(utilityRows[0].fuel_oil_gallons) : null,
+      districtSteamMBTU: utilityRows[0].district_steam_mbtu ? Number(utilityRows[0].district_steam_mbtu) : null,
       totalKBTU,
       hdd,
       cdd,
@@ -342,7 +348,7 @@ export class EnergyService {
       LIMIT ${limit}
     `;
 
-    return result.rows as UtilityConsumption[];
+    return toRows(result) as UtilityConsumption[];
   }
 
   async getCityDegreeDaysHistory(
@@ -356,7 +362,7 @@ export class EnergyService {
       LIMIT ${limit}
     `;
 
-    return result.rows as DegreeDays[];
+    return toRows(result) as DegreeDays[];
   }
 }
 

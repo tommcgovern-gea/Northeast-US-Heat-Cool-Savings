@@ -14,7 +14,7 @@ interface DashboardData {
     cityId: string;
   };
   stats: {
-    complianceRate: number;
+    complianceRate: number | null;
     totalAlerts: number;
     totalRecipients: number;
     days: number;
@@ -110,12 +110,12 @@ export default function BuildingDetailPage() {
       <div>
         <Link
           href="/admin/buildings"
-          className="text-sm text-gray-500 hover:text-gray-700 mb-2 inline-block"
+          className="text-sm text-gray-800 hover:text-gray-700 mb-2 inline-block"
         >
           ← Back to Buildings
         </Link>
         <h1 className="text-3xl font-bold text-gray-900">{data.building.name}</h1>
-        <p className="mt-1 text-sm text-gray-500">{data.building.address}</p>
+        <p className="mt-1 text-sm text-gray-800">{data.building.address}</p>
       </div>
 
       {/* Stats Cards */}
@@ -132,7 +132,7 @@ export default function BuildingDetailPage() {
                     Compliance Rate
                   </dt>
                   <dd className="text-lg font-medium text-gray-900">
-                    {data.stats.complianceRate}%
+                    {data.stats.complianceRate != null ? `${data.stats.complianceRate}%` : "N/A"}
                   </dd>
                 </dl>
               </div>
@@ -189,7 +189,7 @@ export default function BuildingDetailPage() {
           </h2>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-800">
                 {monthNames[data.latestEnergyReport.month - 1]}{" "}
                 {data.latestEnergyReport.year}
               </p>
@@ -197,7 +197,7 @@ export default function BuildingDetailPage() {
                 {data.latestEnergyReport.savingsPercentage >= 0 ? "+" : ""}
                 {data.latestEnergyReport.savingsPercentage.toFixed(1)}%
               </p>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-800 mt-1">
                 {data.latestEnergyReport.savingsKBTU >= 0 ? "+" : ""}
                 {data.latestEnergyReport.savingsKBTU.toLocaleString()} kBTU
               </p>
@@ -226,16 +226,16 @@ export default function BuildingDetailPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Sent At
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                     Upload
                   </th>
                 </tr>
@@ -246,7 +246,7 @@ export default function BuildingDetailPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {message.messageType.replace("_", " ")}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                       {new Date(message.sentAt).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -295,7 +295,7 @@ export default function BuildingDetailPage() {
                     <p className="text-sm font-medium text-gray-900">
                       {upload.fileName}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-800">
                       {new Date(upload.uploadedAt).toLocaleString()}
                     </p>
                   </div>

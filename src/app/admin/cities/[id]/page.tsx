@@ -128,10 +128,10 @@ export default function CityDetailPage() {
 
   if (error || !city) {
     return (
-      <div className="p-4">
+      <div className="space-y-4">
         <Link
           href="/admin/cities"
-          className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-block"
+          className="text-sm text-gray-800 hover:text-gray-700 inline-block"
         >
           ← Back to Cities
         </Link>
@@ -150,12 +150,12 @@ export default function CityDetailPage() {
         <div>
           <Link
             href="/admin/cities"
-            className="text-sm text-gray-500 hover:text-gray-700 mb-2 inline-block"
+            className="text-sm text-gray-800 hover:text-gray-700 mb-2 inline-block"
           >
             ← Back to Cities
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">{city.name}</h1>
-          <p className="mt-1 text-sm text-gray-500">Edit city configuration</p>
+          <p className="mt-1 text-sm text-gray-800">Edit city configuration</p>
         </div>
       </div>
 

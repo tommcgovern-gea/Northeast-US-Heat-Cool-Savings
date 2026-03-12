@@ -22,10 +22,10 @@ export const getCities = async (req: NextRequest) => {
     }
 
     const cities = await db.getCities();
-    const activeCities = (Array.isArray(cities) ? cities : []).filter((c) => c.is_active);
+    const allCities = Array.isArray(cities) ? cities : [];
 
     const citiesWithCounts = await Promise.all(
-      activeCities.map(async (city) => {
+      allCities.map(async (city) => {
         const buildings = await db.getBuildings(city.id);
         return {
           id: city.id,

@@ -4,10 +4,12 @@ import { sendEmail } from './emailService';
 import { templateService, TemplateVariables } from './templateService';
 import crypto from 'crypto';
 
+/** Queue item: userId = BUILDING user (users table). recipientId kept for backward compat when sending old messages. */
 export interface MessageQueueItem {
   alertLogId: string;
   buildingId: string;
-  recipientId: string;
+  userId?: string;
+  recipientId?: string;
   messageType: 'alert' | 'daily_summary' | 'warning';
   content: string;
   uploadToken?: string;
@@ -31,47 +33,45 @@ export class MessageService {
     const messageIds: string[] = [];
 
     for (const item of items) {
-      const recipients = await db.getRecipients(item.buildingId);
-      const recipient = recipients.find(r => r.id === item.recipientId);
-
-      if (!recipient || !recipient.is_active) continue;
-
-      const channels: ('email' | 'sms')[] = [];
-      if (recipient.preference === 'email' || recipient.preference === 'both') {
-        if (recipient.email) channels.push('email');
-      }
-      if (recipient.preference === 'sms' || recipient.preference === 'both') {
-        if (recipient.phone) channels.push('sms');
-      }
-
-      for (const channel of channels) {
-        const messageId = crypto.randomUUID();
-        const uploadToken = item.messageType !== 'warning' 
-          ? await this.generateUploadToken(messageId, item.buildingId)
-          : undefined;
-
-        const content = uploadToken 
-          ? `${item.content}\n\nUpload compliance photo: ${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`
-          : item.content;
-        
-        await sql`
-          INSERT INTO messages (
-            id, alert_log_id, building_id, recipient_id, message_type, 
-            channel, content, delivered, created_at
-          ) VALUES (
-            ${messageId},
-            ${item.alertLogId || null},
-            ${item.buildingId},
-            ${item.recipientId},
-            ${item.messageType},
-            ${channel},
-            ${content},
-            false,
-            NOW()
-          )
-        `;
-
-        messageIds.push(messageId);
+      const isUser = item.userId != null;
+      if (isUser) {
+        const users = await db.getBuildingUsers(item.buildingId);
+        const target = users.find((u) => u.id === item.userId);
+        if (!target || !target.is_active) continue;
+        const channels: ('email' | 'sms')[] = [];
+        if (target.preference === 'email' || target.preference === 'both') if (target.email) channels.push('email');
+        if (target.preference === 'sms' || target.preference === 'both') if (target.phone) channels.push('sms');
+        for (const channel of channels) {
+          const messageId = crypto.randomUUID();
+          const uploadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`;
+          const needsUploadLink = item.messageType !== 'warning';
+          let content = item.content;
+          if (needsUploadLink) content = content.includes('__UPLOAD_URL__') ? content.replace('__UPLOAD_URL__', uploadUrl) : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
+          await sql`
+            INSERT INTO messages (id, alert_log_id, building_id, user_id, message_type, channel, content, delivered, created_at)
+            VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.userId}, ${item.messageType}, ${channel}, ${content}, false, NOW())
+          `;
+          messageIds.push(messageId);
+        }
+      } else if (item.recipientId != null) {
+        const recipients = await db.getRecipients(item.buildingId);
+        const target = recipients.find((r) => r.id === item.recipientId);
+        if (!target || !target.is_active) continue;
+        const channels: ('email' | 'sms')[] = [];
+        if (target.preference === 'email' || target.preference === 'both') if (target.email) channels.push('email');
+        if (target.preference === 'sms' || target.preference === 'both') if (target.phone) channels.push('sms');
+        for (const channel of channels) {
+          const messageId = crypto.randomUUID();
+          const uploadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`;
+          const needsUploadLink = item.messageType !== 'warning';
+          let content = item.content;
+          if (needsUploadLink) content = content.includes('__UPLOAD_URL__') ? content.replace('__UPLOAD_URL__', uploadUrl) : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
+          await sql`
+            INSERT INTO messages (id, alert_log_id, building_id, recipient_id, message_type, channel, content, delivered, created_at)
+            VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.recipientId}, ${item.messageType}, ${channel}, ${content}, false, NOW())
+          `;
+          messageIds.push(messageId);
+        }
       }
     }
 
@@ -101,40 +101,45 @@ export class MessageService {
         let deliveryStatus = 'pending';
         let error: string | undefined;
 
-        if (msg.channel === 'sms') {
-          const recipientResult = await sql`
-            SELECT * FROM recipients WHERE id = ${msg.recipient_id}
-          `;
-          const recipient = toRows(recipientResult)[0];
-          
-          if (recipient?.phone) {
-            const smsResult = await sendSMS(recipient.phone, msg.content);
-            success = smsResult.success;
-            deliveryStatus = success ? 'delivered' : 'failed';
-            error = smsResult.error;
+        let email: string | null = null;
+        let phone: string | null = null;
+        if (msg.user_id) {
+          const userResult = await sql`SELECT * FROM users WHERE id = ${msg.user_id}`;
+          const u = toRows(userResult)[0];
+          if (u) {
+            email = u.email;
+            phone = u.phone;
           }
-        } else if (msg.channel === 'email') {
-          const recipientResult = await sql`
-            SELECT * FROM recipients WHERE id = ${msg.recipient_id}
-          `;
-          const recipient = toRows(recipientResult)[0];
-          
-          if (recipient?.email) {
-            const subject = msg.message_type === 'alert' 
+        } else if (msg.recipient_id) {
+          const recipientResult = await sql`SELECT * FROM recipients WHERE id = ${msg.recipient_id}`;
+          const r = toRows(recipientResult)[0];
+          if (r) {
+            email = r.email;
+            phone = r.phone;
+          }
+        }
+
+        if (msg.channel === 'sms' && phone) {
+          const smsResult = await sendSMS(phone, msg.content);
+          success = smsResult.success;
+          deliveryStatus = success ? 'delivered' : (smsResult.error ? `failed: ${smsResult.error}`.slice(0, 50) : 'failed');
+          error = smsResult.error;
+        }
+        if (msg.channel === 'email' && email) {
+          const subject =
+            msg.message_type === 'alert'
               ? 'Temperature Alert - Action Required'
               : msg.message_type === 'warning'
-              ? 'Compliance Warning'
-              : 'Daily Temperature Summary';
-            
-            const emailResult = await sendEmail({
-              to: recipient.email,
-              subject,
-              text: msg.content,
-            });
-            success = emailResult.success;
-            deliveryStatus = success ? 'delivered' : 'failed';
-            error = emailResult.error;
-          }
+                ? 'Compliance Warning'
+                : 'Daily Temperature Summary';
+          const emailResult = await sendEmail({
+            to: email,
+            subject,
+            text: msg.content,
+          });
+          success = emailResult.success;
+          deliveryStatus = success ? 'delivered' : 'failed';
+          error = emailResult.error;
         }
 
         await sql`
@@ -178,52 +183,30 @@ export class MessageService {
     const messageItems: MessageQueueItem[] = [];
 
     for (const building of activeBuildings) {
-      const recipients = await db.getRecipients(building.id);
-      
-      for (const recipient of recipients) {
-        if (!recipient.is_active) continue;
+      const buildingUsers = await db.getBuildingUsers(building.id);
 
-        const messageType = alert.alert_type === 'sudden_fluctuation' 
-          ? 'alert' 
-          : 'daily_summary';
+      const messageType = alert.alert_type === 'sudden_fluctuation' ? 'alert' : 'daily_summary';
+      const tempData = alert.temperature_data;
+      const city = await db.getCityById(cityId);
+      let template = await templateService.getTemplate(cityId, messageType);
+      let templateContent = template?.content ?? await templateService.getDefaultTemplate(messageType);
+      const variables: TemplateVariables = {
+        temperatureChange: tempData.change || tempData.temperatureChange,
+        timeWindow: tempData.timeWindow,
+        currentTemp: tempData.currentTemp,
+        futureTemp: tempData.futureTemp,
+        averageTemp: tempData.averageTemp,
+        minTemp: tempData.minTemp,
+        maxTemp: tempData.maxTemp,
+        cityName: city?.name || '',
+        buildingName: building.name,
+        uploadUrl: '__UPLOAD_URL__',
+      };
+      const content = await templateService.renderTemplate(templateContent, variables);
 
-        const tempData = alert.temperature_data;
-        const city = await db.getCityById(cityId);
-        
-        let template = await templateService.getTemplate(cityId, messageType);
-        let templateContent = '';
-        
-        if (template) {
-          templateContent = template.content;
-        } else {
-          templateContent = await templateService.getDefaultTemplate(messageType);
-        }
-
-        const messageId = crypto.randomUUID();
-        const uploadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`;
-
-        const variables: TemplateVariables = {
-          temperatureChange: tempData.change || tempData.temperatureChange,
-          timeWindow: tempData.timeWindow,
-          currentTemp: tempData.currentTemp,
-          futureTemp: tempData.futureTemp,
-          averageTemp: tempData.averageTemp,
-          minTemp: tempData.minTemp,
-          maxTemp: tempData.maxTemp,
-          cityName: city?.name || '',
-          buildingName: building.name,
-          uploadUrl,
-        };
-
-        const content = await templateService.renderTemplate(templateContent, variables);
-
-        messageItems.push({
-          alertLogId,
-          buildingId: building.id,
-          recipientId: recipient.id,
-          messageType,
-          content,
-        });
+      for (const u of buildingUsers) {
+        if (!u.is_active) continue;
+        messageItems.push({ alertLogId, buildingId: building.id, userId: u.id, messageType, content });
       }
     }
 

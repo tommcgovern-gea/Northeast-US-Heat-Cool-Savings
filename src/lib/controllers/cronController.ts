@@ -19,12 +19,13 @@ export const checkAlerts = async (req: NextRequest) => {
     const cities = await db.getCities();
     const activeCities = cities.filter((c) => c.is_active);
     
-    let citiesChecked = 0;
+    const citiesChecked: string[] = [];
     let alertsFired = 0;
     const alertIds: string[] = [];
+    const alertsByCity: string[] = [];
 
     for (const city of activeCities) {
-      citiesChecked++;
+      citiesChecked.push(city.name);
 
       const result = await alertService.checkSuddenFluctuation(city.id);
       
@@ -33,6 +34,7 @@ export const checkAlerts = async (req: NextRequest) => {
         if (alertLog) {
           await messageService.createMessagesFromAlert(alertLog.id, city.id);
           alertIds.push(alertLog.id);
+          alertsByCity.push(city.name);
         }
         alertsFired++;
       }
@@ -45,12 +47,22 @@ export const checkAlerts = async (req: NextRequest) => {
     return NextResponse.json({
       citiesChecked,
       alertsFired,
+      alertsByCity,
       alertIds,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error in check-alerts cron:", error);
-    return NextResponse.json({ message: "Error running check-alerts" }, { status: 500 });
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    return NextResponse.json(
+      {
+        message: "Error running check-alerts",
+        error: errMsg,
+        stack: process.env.NODE_ENV === "development" ? errStack : undefined,
+      },
+      { status: 500 }
+    );
   }
 };
 
@@ -63,11 +75,11 @@ export const dailySummary = async (req: NextRequest) => {
     const cities = await db.getCities();
     const activeCities = cities.filter((c) => c.is_active);
     
-    let citiesProcessed = 0;
-    let summariesCreated = 0;
+    const citiesProcessed: string[] = [];
+    const summariesByCity: string[] = [];
 
     for (const city of activeCities) {
-      citiesProcessed++;
+      citiesProcessed.push(city.name);
 
       const summary = await alertService.calculateDailySummary(city.id);
       
@@ -86,7 +98,7 @@ export const dailySummary = async (req: NextRequest) => {
         });
         
         await messageService.createMessagesFromAlert(alertLog.id, city.id);
-        summariesCreated++;
+        summariesByCity.push(city.name);
       }
 
       await alertService.saveTemperatureSnapshot(city.id);
@@ -96,12 +108,17 @@ export const dailySummary = async (req: NextRequest) => {
 
     return NextResponse.json({
       citiesProcessed,
-      summariesCreated,
+      summariesCreated: summariesByCity.length,
+      summariesByCity,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error in daily-summary cron:", error);
-    return NextResponse.json({ message: "Error running daily-summary" }, { status: 500 });
+    const errMsg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json(
+      { message: "Error running daily-summary", error: errMsg },
+      { status: 500 }
+    );
   }
 };
 

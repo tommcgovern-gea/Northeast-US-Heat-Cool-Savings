@@ -33,16 +33,21 @@ export const login = async (req: Request) => {
       );
     }
 
+    const raw = user.building_ids ?? [];
+    const buildingIds = Array.isArray(raw) ? raw.filter(Boolean) : (raw ? [raw] : []);
+
     const token = signToken({
       userId: user.id,
       role: user.role,
-      buildingId: user.building_id || null,
+      buildingId: buildingIds[0] ?? null,
+      buildingIds: buildingIds.length ? buildingIds : null,
     });
 
     return NextResponse.json({
       token,
       role: user.role,
-      buildingId: user.building_id || null,
+      buildingId: buildingIds[0] ?? null,
+      buildingIds: buildingIds.length ? buildingIds : null,
       email: user.email,
     });
   } catch (error: any) {

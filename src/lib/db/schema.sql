@@ -47,7 +47,11 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(20) NOT NULL CHECK (role IN ('ADMIN', 'STAFF', 'BUILDING')),
-  building_id UUID REFERENCES buildings(id) ON DELETE SET NULL,
+  building_ids UUID[] DEFAULT '{}',
+  name VARCHAR(200),
+  phone VARCHAR(20),
+  preference VARCHAR(10) DEFAULT 'email' CHECK (preference IN ('email', 'sms', 'both')),
+  is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -68,7 +72,8 @@ CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   alert_log_id UUID REFERENCES alert_logs(id) ON DELETE SET NULL,
   building_id UUID NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
-  recipient_id UUID NOT NULL REFERENCES recipients(id) ON DELETE CASCADE,
+  recipient_id UUID REFERENCES recipients(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   message_type VARCHAR(20) NOT NULL CHECK (message_type IN ('alert', 'daily_summary', 'warning')),
   channel VARCHAR(10) NOT NULL CHECK (channel IN ('email', 'sms', 'both')),
   content TEXT NOT NULL,
@@ -83,7 +88,8 @@ CREATE TABLE IF NOT EXISTS photo_uploads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
   building_id UUID NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
-  recipient_id UUID NOT NULL REFERENCES recipients(id) ON DELETE CASCADE,
+  recipient_id UUID REFERENCES recipients(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   file_url TEXT NOT NULL,
   file_name VARCHAR(255) NOT NULL,
   uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -104,7 +110,6 @@ CREATE TABLE IF NOT EXISTS temperature_snapshots (
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_buildings_city_id ON buildings(city_id);
 CREATE INDEX IF NOT EXISTS idx_recipients_building_id ON recipients(building_id);
-CREATE INDEX IF NOT EXISTS idx_users_building_id ON users(building_id);
 CREATE INDEX IF NOT EXISTS idx_alert_logs_city_id ON alert_logs(city_id);
 CREATE INDEX IF NOT EXISTS idx_alert_logs_triggered_at ON alert_logs(triggered_at);
 CREATE INDEX IF NOT EXISTS idx_messages_building_id ON messages(building_id);

@@ -4,9 +4,10 @@ import { verifyToken, TokenPayload } from '@/lib/auth';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -19,7 +20,7 @@ export async function GET(
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    const city = await db.getCityById(params.id);
+    const city = await db.getCityById(id);
     if (!city) {
       return NextResponse.json({ message: 'City not found' }, { status: 404 });
     }
@@ -41,9 +42,10 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -77,7 +79,7 @@ export async function PUT(
     if (body.nwsGridX !== undefined) updateData.nws_grid_x = body.nwsGridX;
     if (body.nwsGridY !== undefined) updateData.nws_grid_y = body.nwsGridY;
 
-    const updatedCity = await db.updateCity(params.id, updateData);
+    const updatedCity = await db.updateCity(id, updateData);
 
     if (!updatedCity) {
       return NextResponse.json({ message: 'City not found' }, { status: 404 });

@@ -31,7 +31,11 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("token", data.token);
-      router.push("/admin");
+      if (data.role === "BUILDING") {
+        router.push("/building");
+      } else {
+        router.push("/admin");
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -46,7 +50,7 @@ export default function LoginPage() {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Heat-Cool Savings Portal
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-gray-800">
             Sign in to your account
           </p>
         </div>

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import { complianceService } from '@/lib/services/complianceService';
-import { db } from '@/lib/db/client';
-import { sql } from '@/lib/db/client';
+import { db, sql, toRows } from '@/lib/db/client';
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,7 +21,12 @@ export async function GET(req: NextRequest) {
     const days = parseInt(req.nextUrl.searchParams.get('days') || '30');
 
     if (buildingId) {
-      const complianceRate = await complianceService.getBuildingComplianceRate(buildingId, days);
+      let complianceRate: number | null = null;
+      try {
+        complianceRate = await complianceService.getBuildingComplianceRate(buildingId, days);
+      } catch {
+        // Tables may not exist
+      }
       
       const messagesResult = await sql`
         SELECT m.*, COUNT(p.id) as upload_count
@@ -30,18 +34,19 @@ export async function GET(req: NextRequest) {
         LEFT JOIN photo_uploads p ON p.message_id = m.id
         WHERE m.building_id = ${buildingId}
           AND m.message_type IN ('alert', 'daily_summary')
-          AND m.sent_at >= NOW() - INTERVAL '${days} days'
+          AND m.sent_at >= NOW() - make_interval(days => ${days})
           AND m.delivered = true
         GROUP BY m.id
         ORDER BY m.sent_at DESC
         LIMIT 50
       `;
 
+      const messageRows = toRows(messagesResult);
       return NextResponse.json({
         buildingId,
         complianceRate,
         days,
-        messages: messagesResult.rows.map(msg => ({
+        messages: messageRows.map((msg: any) => ({
           id: msg.id,
           messageType: msg.message_type,
           sentAt: msg.sent_at,
@@ -53,31 +58,32 @@ export async function GET(req: NextRequest) {
     }
 
     const buildings = await db.getBuildings();
-    const complianceData = await Promise.all(
-      buildings.map(async (building) => {
-        const rate = await complianceService.getBuildingComplianceRate(building.id, days);
-        return {
-          buildingId: building.id,
-          buildingName: building.name,
-          complianceRate: rate,
-        };
-      })
+    const rateMap = await complianceService.getBuildingComplianceRatesBatch(
+      buildings.map((b) => b.id),
+      days
     );
+    const complianceData = buildings.map((building) => ({
+      buildingId: building.id,
+      buildingName: building.name,
+      complianceRate: rateMap.get(building.id) ?? null,
+    }));
 
-    const overallRate = complianceData.length > 0
-      ? complianceData.reduce((sum, b) => sum + b.complianceRate, 0) / complianceData.length
-      : 100;
+    const buildingsWithData = complianceData.filter((b) => b.complianceRate != null);
+    const overallRate =
+      buildingsWithData.length > 0
+        ? buildingsWithData.reduce((sum, b) => sum + (b.complianceRate ?? 0), 0) / buildingsWithData.length
+        : null;
 
     return NextResponse.json({
-      overallComplianceRate: Math.round(overallRate * 10) / 10,
+      overallComplianceRate: overallRate != null ? Math.round(overallRate * 10) / 10 : null,
       buildings: complianceData,
       days,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching compliance data:', error);
-    return NextResponse.json(
-      { message: 'Error fetching compliance data' },
-      { status: 500 }
-    );
+    const msg = error?.message?.includes('does not exist')
+      ? 'Compliance tables not found. Ensure schema includes messages and photo_uploads.'
+      : 'Error fetching compliance data';
+    return NextResponse.json({ message: msg }, { status: 500 });
   }
 }

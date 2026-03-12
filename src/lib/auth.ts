@@ -6,7 +6,9 @@ export type UserRole = "ADMIN" | "STAFF" | "BUILDING";
 export interface TokenPayload {
   userId: string;
   role: UserRole;
+  /** @deprecated use buildingIds */
   buildingId?: string | null;
+  buildingIds?: string[] | null;
 }
 
 export function signToken(payload: TokenPayload) {
@@ -19,4 +21,11 @@ export function verifyToken(token: string): TokenPayload | null {
   } catch {
     return null;
   }
+}
+
+export function canAccessBuilding(user: TokenPayload, buildingId: string): boolean {
+  if (user.role !== "BUILDING") return true;
+  if (user.buildingId === buildingId) return true;
+  if (user.buildingIds && user.buildingIds.includes(buildingId)) return true;
+  return false;
 }
