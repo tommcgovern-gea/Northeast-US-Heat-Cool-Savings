@@ -80,6 +80,7 @@ export default function AdminLayout({
     { name: "Cities", href: "/admin/cities", icon: "🏙️" },
     { name: "Buildings", href: "/admin/buildings", icon: "🏢" },
     { name: "Recipients", href: "/admin/recipients", icon: "👥" },
+    { name: "Staff Signup Details", href: "/admin/staff", icon: "👤" },
     { name: "Templates", href: "/admin/templates", icon: "📝" },
     { name: "Compliance", href: "/admin/compliance", icon: "✅" },
     { name: "Message Logs", href: "/admin/messages", icon: "📋" },

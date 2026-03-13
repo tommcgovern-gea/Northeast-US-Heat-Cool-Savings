@@ -29,3 +29,41 @@ export function canAccessBuilding(user: TokenPayload, buildingId: string): boole
   if (user.buildingIds && user.buildingIds.includes(buildingId)) return true;
   return false;
 }
+
+/** Short-lived token for viewing a report PDF (e.g. open in new tab). */
+export function signReportLinkToken(reportId: string): string {
+  return jwt.sign(
+    { reportId, purpose: "report-pdf" },
+    JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+}
+
+export function verifyReportLinkToken(token: string): { reportId: string } | null {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { reportId?: string; purpose?: string };
+    if (payload?.purpose === "report-pdf" && payload?.reportId) return { reportId: payload.reportId };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Short-lived token for viewing an uploaded file (e.g. open in new tab). */
+export function signUploadLinkToken(uploadId: string): string {
+  return jwt.sign(
+    { uploadId, purpose: "upload-file" },
+    JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+}
+
+export function verifyUploadLinkToken(token: string): { uploadId: string } | null {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { uploadId?: string; purpose?: string };
+    if (payload?.purpose === "upload-file" && payload?.uploadId) return { uploadId: payload.uploadId };
+    return null;
+  } catch {
+    return null;
+  }
+}

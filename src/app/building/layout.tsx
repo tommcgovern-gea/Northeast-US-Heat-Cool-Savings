@@ -78,9 +78,6 @@ export default function BuildingLayout({
               </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">
-                View-Only Access
-              </span>
               <button
                 onClick={handleLogout}
                 className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md cursor-pointer transition-colors"

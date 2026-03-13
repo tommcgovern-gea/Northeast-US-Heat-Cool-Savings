@@ -24,10 +24,20 @@ export default function BuildingLoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
+      let data: { message?: string; role?: string; token?: string } = {};
+      const contentType = response.headers.get("content-type");
+      if (contentType?.includes("application/json")) {
+        try {
+          data = await response.json();
+        } catch {
+          data = { message: "Invalid response from server" };
+        }
+      } else {
+        data = { message: response.status === 401 ? "Invalid email or password." : "Login failed." };
+      }
 
       if (!response.ok) {
-        throw new Error(data.message || "Login failed");
+        throw new Error(data.message || (response.status === 401 ? "Invalid email or password." : "Login failed."));
       }
 
       // Check if user is a building user
@@ -35,10 +45,10 @@ export default function BuildingLoginPage() {
         throw new Error("Access denied. This portal is for building users only.");
       }
 
-      localStorage.setItem("token", data.token);
+      localStorage.setItem("token", data.token!);
       router.push("/building");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }

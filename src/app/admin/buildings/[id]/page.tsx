@@ -37,6 +37,7 @@ interface DashboardData {
     sentAt: string;
   }>;
   latestEnergyReport: {
+    id?: string;
     month: number;
     year: number;
     savingsPercentage: number;
@@ -51,6 +52,7 @@ export default function BuildingDetailPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     if (buildingId) {
@@ -79,6 +81,21 @@ export default function BuildingDetailPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleViewUpload = async (uploadId: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/photo-uploads/${uploadId}/file-token`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to get link");
+      const { url } = await res.json();
+      window.open(url, "_blank");
+    } catch {
+      setError("Could not open document");
     }
   };
 
@@ -123,7 +140,7 @@ export default function BuildingDetailPage() {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
+              <div className="shrink-0 bg-green-500 rounded-md p-3">
                 <span className="text-2xl">✅</span>
               </div>
               <div className="ml-5 w-0 flex-1">
@@ -143,7 +160,7 @@ export default function BuildingDetailPage() {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
+              <div className="shrink-0 bg-blue-500 rounded-md p-3">
                 <span className="text-2xl">⚠️</span>
               </div>
               <div className="ml-5 w-0 flex-1">
@@ -163,7 +180,7 @@ export default function BuildingDetailPage() {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-purple-500 rounded-md p-3">
+              <div className="shrink-0 bg-purple-500 rounded-md p-3">
                 <span className="text-2xl">👥</span>
               </div>
               <div className="ml-5 w-0 flex-1">
@@ -202,15 +219,60 @@ export default function BuildingDetailPage() {
                 {data.latestEnergyReport.savingsKBTU.toLocaleString()} kBTU
               </p>
             </div>
-            {data.latestEnergyReport.pdfUrl && (
-              <a
-                href={data.latestEnergyReport.pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                View Report
-              </a>
+            {(data.latestEnergyReport.pdfUrl || (data.latestEnergyReport as { id?: string }).id) && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const report = data.latestEnergyReport;
+                    if (!report) return;
+                    const reportId = (report as { id?: string }).id;
+                    if (!reportId) {
+                      if (report.pdfUrl) window.open(report.pdfUrl, "_blank");
+                      return;
+                    }
+                    const token = localStorage.getItem("token");
+                    if (!token) return;
+                    const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (!tr.ok) return;
+                    const { token: linkToken } = await tr.json();
+                    if (!linkToken) return;
+                    const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
+                    window.open(url, "_blank");
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  View Report
+                </button>
+                {(data.latestEnergyReport as { id?: string }).id && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const report = data.latestEnergyReport;
+                      if (!report) return;
+                      const reportId = (report as { id?: string }).id;
+                      if (!reportId) return;
+                      const token = localStorage.getItem("token");
+                      if (!token) return;
+                      const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      if (!tr.ok) return;
+                      const { token: linkToken } = await tr.json();
+                      if (!linkToken) return;
+                      const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
+                      await navigator.clipboard.writeText(url);
+                      setLinkCopied(true);
+                      setTimeout(() => setLinkCopied(false), 2000);
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 border border-gray-300"
+                  >
+                    {linkCopied ? "Copied!" : "Copy link"}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -308,6 +370,13 @@ export default function BuildingDetailPage() {
                     >
                       {upload.isCompliant ? "Compliant" : "Late"}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => handleViewUpload(upload.id)}
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                    >
+                      View
+                    </button>
                   </div>
                 </div>
               ))}

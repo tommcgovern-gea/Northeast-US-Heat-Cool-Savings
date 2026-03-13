@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
+import { db } from '@/lib/db/client';
 import { energyService } from '@/lib/services/energyService';
 import * as XLSX from 'xlsx';
 
@@ -16,6 +17,9 @@ export async function POST(req: NextRequest) {
     if (!user || (user.role !== 'ADMIN' && user.role !== 'STAFF')) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
+
+    const existingUser = await db.getUserById(user.userId);
+    const uploadedBy = existingUser ? user.userId : null;
 
     const formData = await req.formData();
     const file = formData.get('file') as File;
@@ -76,7 +80,7 @@ export async function POST(req: NextRequest) {
               districtSteamMBTU: row.districtSteamMBTU || row['District Steam (MBTU)'] || row.district_steam_mbtu ? parseFloat(row.districtSteamMBTU || row['District Steam (MBTU)'] || row.district_steam_mbtu) : undefined,
               totalKBTU,
             },
-            user.userId
+            uploadedBy
           );
 
           await energyService.calculateBaseline(buildingId!, month);
@@ -104,7 +108,7 @@ export async function POST(req: NextRequest) {
             year,
             hdd,
             cdd,
-            user.userId
+            uploadedBy
           );
 
           results.push({ month, year, success: true });

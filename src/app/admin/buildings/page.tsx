@@ -28,6 +28,8 @@ export default function BuildingsPage() {
     address: "",
     cityId: "",
   });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [updateLoading, setUpdateLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -93,6 +95,7 @@ export default function BuildingsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateLoading(true);
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
@@ -116,6 +119,8 @@ export default function BuildingsPage() {
       fetchData();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setCreateLoading(false);
     }
   };
 
@@ -157,6 +162,7 @@ export default function BuildingsPage() {
     e.preventDefault();
     if (!editingBuilding) return;
 
+    setUpdateLoading(true);
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(`/api/buildings/${editingBuilding.id}`, {
@@ -179,6 +185,8 @@ export default function BuildingsPage() {
       fetchData();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setUpdateLoading(false);
     }
   };
 
@@ -456,10 +464,10 @@ export default function BuildingsPage() {
                 <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t">
                   <button
                     type="submit"
-                    disabled={!formData.cityId || !formData.name || !formData.address}
+                    disabled={!formData.cityId || !formData.name || !formData.address || createLoading}
                     className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Create Building
+                    {createLoading ? "Creating…" : "Create Building"}
                   </button>
                   <button
                     type="button"
@@ -535,9 +543,10 @@ export default function BuildingsPage() {
                 <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t">
                   <button
                     type="submit"
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                    disabled={updateLoading}
+                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
                   >
-                    Save
+                    {updateLoading ? "Saving…" : "Save"}
                   </button>
                   <button
                     type="button"

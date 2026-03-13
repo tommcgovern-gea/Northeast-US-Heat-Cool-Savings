@@ -364,6 +364,44 @@ export const db = {
     return rows[0] ?? null;
   },
 
+  /** All BUILDING users for admin “add existing user” list. */
+  async getBuildingRoleUsers(): Promise<Array<{ id: string; email: string; name: string | null; phone: string | null; preference: string; building_ids: string[] }>> {
+    const result = await sql`
+      SELECT id, email, name, phone, preference, building_ids
+      FROM users
+      WHERE role = 'BUILDING'
+      ORDER BY email
+    `;
+    const rows = toRows(result) as any[];
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      name: r.name ?? null,
+      phone: r.phone ?? null,
+      preference: r.preference ?? 'email',
+      building_ids: Array.isArray(r.building_ids) ? r.building_ids.filter(Boolean) : [],
+    }));
+  },
+
+  /** Staff users for admin “Staff Signup Details” (id, email, name, signup date). */
+  async getStaffUsers(): Promise<Array<{ id: string; email: string; name: string | null; phone: string | null; is_active: boolean; created_at: string }>> {
+    const result = await sql`
+      SELECT id, email, name, phone, is_active, created_at
+      FROM users
+      WHERE role = 'STAFF'
+      ORDER BY created_at DESC
+    `;
+    const rows = toRows(result) as any[];
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      name: r.name ?? null,
+      phone: r.phone ?? null,
+      is_active: r.is_active !== false,
+      created_at: r.created_at,
+    }));
+  },
+
   async updateUser(id: string, data: { name?: string | null; email?: string; phone?: string | null; preference?: string; is_active?: boolean; building_ids?: string[] }): Promise<any | null> {
     const user = await this.getUserById(id);
     if (!user) return null;
