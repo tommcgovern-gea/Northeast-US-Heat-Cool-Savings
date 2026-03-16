@@ -19,8 +19,8 @@ export const login = async (req: Request) => {
 
     if (!user) {
       return NextResponse.json(
-        { message: "Invalid credentials" },
-        { status: 401 }
+        { message: "Invalid email or password." },
+        { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
 
@@ -28,8 +28,8 @@ export const login = async (req: Request) => {
 
     if (!isValidPassword) {
       return NextResponse.json(
-        { message: "Invalid credentials" },
-        { status: 401 }
+        { message: "Invalid email or password." },
+        { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
 

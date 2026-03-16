@@ -41,6 +41,7 @@ interface DashboardData {
     sentAt: string;
   }>;
   latestEnergyReport: {
+    id?: string;
     month: number;
     year: number;
     savingsPercentage: number;
@@ -56,6 +57,8 @@ export default function BuildingDashboard() {
   const [loading, setLoading] = useState(true);
   const [buildingsLoaded, setBuildingsLoaded] = useState(false);
   const [error, setError] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [viewingUploadId, setViewingUploadId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -103,6 +106,24 @@ export default function BuildingDashboard() {
       .catch((err: any) => setError(err.message))
       .finally(() => setLoading(false));
   }, [selectedBuildingId]);
+
+  const handleViewUpload = async (uploadId: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setViewingUploadId(uploadId);
+    try {
+      const res = await fetch(`/api/photo-uploads/${uploadId}/file-token`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to get link");
+      const { url } = await res.json();
+      window.open(url, "_blank");
+    } catch {
+      setError("Could not open document");
+    } finally {
+      setViewingUploadId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -174,7 +195,7 @@ export default function BuildingDashboard() {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
+              <div className="shrink-0 bg-green-500 rounded-md p-3">
                 <span className="text-2xl">✅</span>
               </div>
               <div className="ml-5 w-0 flex-1">
@@ -194,7 +215,7 @@ export default function BuildingDashboard() {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
+              <div className="shrink-0 bg-blue-500 rounded-md p-3">
                 <span className="text-2xl">⚠️</span>
               </div>
               <div className="ml-5 w-0 flex-1">
@@ -214,7 +235,7 @@ export default function BuildingDashboard() {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-purple-500 rounded-md p-3">
+              <div className="shrink-0 bg-purple-500 rounded-md p-3">
                 <span className="text-2xl">👥</span>
               </div>
               <div className="ml-5 w-0 flex-1">
@@ -253,15 +274,75 @@ export default function BuildingDashboard() {
                 {data.latestEnergyReport.savingsKBTU.toLocaleString()} kBTU
               </p>
             </div>
-            {data.latestEnergyReport.pdfUrl && (
-              <a
-                href={data.latestEnergyReport.pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                View Report
-              </a>
+            {(data.latestEnergyReport.pdfUrl || (data.latestEnergyReport as { id?: string }).id) && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const report = data.latestEnergyReport;
+                    if (!report) return;
+                    const reportId = (report as { id?: string }).id;
+                    if (!reportId) {
+                      if (report.pdfUrl) window.open(report.pdfUrl, "_blank");
+                      return;
+                    }
+                    const token = localStorage.getItem("token");
+                    if (!token) return;
+                    const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (!tr.ok) return;
+                    const { token: linkToken } = await tr.json();
+                    if (!linkToken) return;
+                    const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
+                    window.open(url, "_blank");
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  View Report
+                </button>
+                {(data.latestEnergyReport as { id?: string }).id && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const report = data.latestEnergyReport;
+                      if (!report) return;
+                      const reportId = (report as { id?: string }).id;
+                      if (!reportId) return;
+                      try {
+                        const token = localStorage.getItem("token");
+                        if (!token) return;
+                        const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        if (!tr.ok) return;
+                        const { token: linkToken } = await tr.json();
+                        if (!linkToken) return;
+                        const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
+                        if (navigator.clipboard?.writeText) {
+                          await navigator.clipboard.writeText(url);
+                        } else {
+                          const ta = document.createElement("textarea");
+                          ta.value = url;
+                          ta.style.position = "fixed";
+                          ta.style.opacity = "0";
+                          document.body.appendChild(ta);
+                          ta.select();
+                          document.execCommand("copy");
+                          document.body.removeChild(ta);
+                        }
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 2500);
+                      } catch {
+                        // copy failed
+                      }
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700 min-w-[5.5rem]"
+                  >
+                    {linkCopied ? "Copied" : "Copy link"}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -361,6 +442,13 @@ export default function BuildingDashboard() {
                     >
                       {upload.isCompliant ? "Compliant" : "Late"}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => handleViewUpload(upload.id)}
+                      className="inline-flex items-center px-2.5 py-1 border border-gray-300 rounded text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      View
+                    </button>
                   </div>
                 </div>
               ))}
@@ -372,7 +460,7 @@ export default function BuildingDashboard() {
       {/* View-Only Notice */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex">
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
             </svg>

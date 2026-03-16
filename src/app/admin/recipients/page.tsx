@@ -41,6 +41,12 @@ export default function RecipientsPage() {
   const [editingRecipient, setEditingRecipient] = useState<Recipient | null>(null);
   const [editBuildingIds, setEditBuildingIds] = useState<string[]>([]);
   const [editLoading, setEditLoading] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [addRecipientTab, setAddRecipientTab] = useState<'existing' | 'new'>('new');
+  const [existingUsers, setExistingUsers] = useState<Array<{ id: string; email: string; name: string | null; phone: string | null; preference: string; building_ids: string[] }>>([]);
+  const [existingUsersLoading, setExistingUsersLoading] = useState(false);
+  const [selectedExistingUserId, setSelectedExistingUserId] = useState<string>('');
 
   useEffect(() => {
     fetchBuildings();
@@ -104,6 +110,28 @@ export default function RecipientsPage() {
     }
   };
 
+  const fetchExistingUsers = async () => {
+    setExistingUsersLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const res = await fetch("/api/admin/users", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Failed to fetch users");
+      const data = await res.json();
+      setExistingUsers(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setExistingUsersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showCreateModal && addRecipientTab === "existing") {
+      fetchExistingUsers();
+    }
+  }, [showCreateModal, addRecipientTab]);
+
   const handleEdit = async (recipient: Recipient) => {
     setError("");
     setEditingRecipient(recipient);
@@ -151,6 +179,7 @@ export default function RecipientsPage() {
       return;
     }
 
+    setUpdateLoading(true);
     try {
       const token = localStorage.getItem("token");
       const body: Record<string, unknown> = {
@@ -181,6 +210,8 @@ export default function RecipientsPage() {
       fetchRecipients();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setUpdateLoading(false);
     }
   };
 
@@ -207,30 +238,53 @@ export default function RecipientsPage() {
     e.preventDefault();
     setError("");
     const ids = formData.buildingIds.length > 0 ? formData.buildingIds : (formData.buildingId ? [formData.buildingId] : []);
-    if (!formData.email && !formData.phone) {
-      setError("Email or phone is required");
-      return;
-    }
     if (ids.length === 0) {
       setError("Please select at least one building");
       return;
     }
-    if (formData.password && formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-    if (formData.password && formData.password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-    if (formData.password && !formData.email?.trim()) {
-      setError("Email is required when setting building portal password");
-      return;
+
+    const isExisting = addRecipientTab === "existing" && selectedExistingUserId;
+    let name = formData.name;
+    let email = formData.email || null;
+    let phone = formData.phone || null;
+    let preference = formData.preference;
+
+    if (isExisting) {
+      const user = existingUsers.find((u) => u.id === selectedExistingUserId);
+      if (!user) {
+        setError("Please select an existing user");
+        return;
+      }
+      name = user.name || "";
+      email = user.email;
+      phone = user.phone || null;
+      preference = user.preference || "email";
+    } else {
+      if (!formData.email && !formData.phone) {
+        setError("Email or phone is required");
+        return;
+      }
+      if (formData.password && formData.password !== formData.confirmPassword) {
+        setError("Passwords do not match");
+        return;
+      }
+      if (formData.password && formData.password.length < 6) {
+        setError("Password must be at least 6 characters");
+        return;
+      }
+      if (formData.password && !formData.email?.trim()) {
+        setError("Email is required when setting building portal password");
+        return;
+      }
     }
 
+    setCreateLoading(true);
     try {
       const token = localStorage.getItem("token");
-      if (!token) return;
+      if (!token) {
+        setCreateLoading(false);
+        return;
+      }
 
       const response = await fetch("/api/recipients", {
         method: "POST",
@@ -240,11 +294,11 @@ export default function RecipientsPage() {
         },
         body: JSON.stringify({
           buildingIds: ids,
-          name: formData.name,
-          email: formData.email || null,
-          phone: formData.phone || null,
-          preference: formData.preference,
-          ...(formData.password ? { password: formData.password } : {}),
+          name,
+          email,
+          phone,
+          preference,
+          ...(!isExisting && formData.password ? { password: formData.password } : {}),
         }),
       });
 
@@ -253,12 +307,15 @@ export default function RecipientsPage() {
         throw new Error(data.message || "Failed to create recipient");
       }
 
-      const data = await response.json();
       setShowCreateModal(false);
       setFormData({ name: "", email: "", phone: "", preference: "email", buildingId: "", buildingIds: [], password: "", confirmPassword: "" });
+      setAddRecipientTab("new");
+      setSelectedExistingUserId("");
       fetchRecipients();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setCreateLoading(false);
     }
   };
 
@@ -306,6 +363,8 @@ export default function RecipientsPage() {
                 password: "",
                 confirmPassword: "",
               });
+              setAddRecipientTab("new");
+              setSelectedExistingUserId("");
               setShowCreateModal(true);
             }}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
@@ -437,110 +496,143 @@ export default function RecipientsPage() {
                         ))}
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-800 mb-1">
-                        Name
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Recipient name"
-                        className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        value={formData.name}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-800 mb-1">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        placeholder="email@example.com"
-                        className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        value={formData.email}
-                        onChange={(e) =>
-                          setFormData({ ...formData, email: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs text-gray-600">Optional: building portal login (email + password above)</p>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-0.5">Password</label>
-                        <input
-                          type="password"
-                          placeholder="Min 6 characters"
-                          autoComplete="new-password"
-                          className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          value={formData.password}
-                          onChange={(e) =>
-                            setFormData({ ...formData, password: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-0.5">Confirm password</label>
-                        <input
-                          type="password"
-                          placeholder="Repeat password"
-                          autoComplete="new-password"
-                          className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          value={formData.confirmPassword}
-                          onChange={(e) =>
-                            setFormData({ ...formData, confirmPassword: e.target.value })
-                          }
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-800 mb-1">
-                        Phone
-                      </label>
-                      <p className="text-xs text-amber-700 mb-1">Use the recipient&apos;s personal phone (not your Twilio sender number)</p>
-                      <input
-                        type="tel"
-                        placeholder="+1234567890"
-                        className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        value={formData.phone}
-                        onChange={(e) =>
-                          setFormData({ ...formData, phone: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-800 mb-1">
-                        Communication Preference
-                      </label>
-                      <select
-                        className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        value={formData.preference}
-                        onChange={(e) =>
-                          setFormData({ ...formData, preference: e.target.value as any })
-                        }
+
+                    {/* Tabs: Add existing user | Add new user */}
+                    <div className="flex gap-2 border-b border-gray-200">
+                      <button
+                        type="button"
+                        onClick={() => setAddRecipientTab("existing")}
+                        className={`px-4 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px ${addRecipientTab === "existing" ? "border-blue-600 text-blue-700 bg-blue-50" : "border-transparent text-gray-600 hover:text-gray-900"}`}
                       >
-                        <option value="email" className="text-gray-900 bg-white">Email</option>
-                        <option value="sms" className="text-gray-900 bg-white">SMS</option>
-                        <option value="both" className="text-gray-900 bg-white">Both</option>
-                      </select>
+                        Add existing user
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAddRecipientTab("new")}
+                        className={`px-4 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px ${addRecipientTab === "new" ? "border-blue-600 text-blue-700 bg-blue-50" : "border-transparent text-gray-600 hover:text-gray-900"}`}
+                      >
+                        Add new user
+                      </button>
                     </div>
+
+                    {addRecipientTab === "existing" ? (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-800 mb-1">
+                          Select user
+                        </label>
+                        <p className="text-xs text-gray-600 mb-2">
+                          Assign this user to the selected building(s). They will receive alerts and can use the building portal for each.
+                        </p>
+                        {existingUsersLoading ? (
+                          <p className="text-sm text-gray-500">Loading users…</p>
+                        ) : (
+                          <select
+                            value={selectedExistingUserId}
+                            onChange={(e) => setSelectedExistingUserId(e.target.value)}
+                            className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Choose a user…</option>
+                            {existingUsers.map((u) => (
+                              <option key={u.id} value={u.id} className="text-gray-900 bg-white">
+                                {u.email} {u.name ? `(${u.name})` : ""}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {existingUsers.length === 0 && !existingUsersLoading && (
+                          <p className="text-sm text-amber-700 mt-1">No building users yet. Use &quot;Add new user&quot; to create one.</p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-800 mb-1">Name</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Recipient name"
+                            className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-800 mb-1">Email</label>
+                          <input
+                            type="email"
+                            placeholder="email@example.com"
+                            className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-600">Optional: building portal login (email + password above)</p>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-0.5">Password</label>
+                            <input
+                              type="password"
+                              placeholder="Min 6 characters"
+                              autoComplete="new-password"
+                              className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              value={formData.password}
+                              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-0.5">Confirm password</label>
+                            <input
+                              type="password"
+                              placeholder="Repeat password"
+                              autoComplete="new-password"
+                              className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              value={formData.confirmPassword}
+                              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-800 mb-1">Phone</label>
+                          <p className="text-xs text-amber-700 mb-1">Use the recipient&apos;s personal phone (not your Twilio sender number)</p>
+                          <input
+                            type="tel"
+                            placeholder="+1234567890"
+                            className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-800 mb-1">Communication Preference</label>
+                          <select
+                            className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={formData.preference}
+                            onChange={(e) => setFormData({ ...formData, preference: e.target.value as "email" | "sms" | "both" })}
+                          >
+                            <option value="email" className="text-gray-900 bg-white">Email</option>
+                            <option value="sms" className="text-gray-900 bg-white">SMS</option>
+                            <option value="both" className="text-gray-900 bg-white">Both</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="px-6 py-4 bg-gray-100 flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 border-2 border-gray-400 rounded-md text-gray-800 bg-white font-medium hover:bg-gray-50"
+                    disabled={createLoading}
+                    className="px-4 py-2 border-2 border-gray-400 rounded-md text-gray-800 bg-white font-medium hover:bg-gray-50 disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700"
+                    disabled={createLoading}
+                    className="px-4 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
                   >
-                    Create
+                    {createLoading ? "Creating…" : "Create"}
                   </button>
                 </div>
               </form>
@@ -564,39 +656,6 @@ export default function RecipientsPage() {
                     Edit Recipient
                   </h3>
                   <div className="space-y-4">
-                    {editingRecipient && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-800 mb-1">
-                          Building(s)
-                        </label>
-                        <p className="text-xs text-gray-600 mb-2">
-                          Change which buildings this recipient is linked to. They will receive alerts for all selected buildings.
-                        </p>
-                        {editLoading ? (
-                          <p className="text-sm text-gray-500">Loading…</p>
-                        ) : (
-                          <div className="border border-gray-300 rounded-md p-3 max-h-40 overflow-y-auto bg-gray-50">
-                            {buildings.map((building) => (
-                              <label key={building.id} className="flex items-center gap-2 py-1.5 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={formData.buildingIds.includes(building.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setFormData({ ...formData, buildingIds: [...formData.buildingIds, building.id] });
-                                    } else {
-                                      setFormData({ ...formData, buildingIds: formData.buildingIds.filter((id) => id !== building.id) });
-                                    }
-                                  }}
-                                  className="rounded border-gray-400 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span className="text-sm text-gray-900">{building.name} – {building.cityName}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
                     <div>
                       <label className="block text-sm font-medium text-gray-800 mb-1">Name</label>
                       <input
@@ -643,15 +702,17 @@ export default function RecipientsPage() {
                   <button
                     type="button"
                     onClick={() => setShowEditModal(false)}
-                    className="px-4 py-2 border-2 border-gray-400 rounded-md text-gray-800 bg-white font-medium hover:bg-gray-50"
+                    disabled={updateLoading}
+                    className="px-4 py-2 border-2 border-gray-400 rounded-md text-gray-800 bg-white font-medium hover:bg-gray-50 disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700"
+                    disabled={updateLoading}
+                    className="px-4 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
                   >
-                    Save
+                    {updateLoading ? "Saving…" : "Save"}
                   </button>
                 </div>
               </form>

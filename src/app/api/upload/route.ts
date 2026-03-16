@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     const fileName = `${crypto.randomUUID()}-${file.name}`;
     const blob = await put(fileName, file, {
-      access: 'public',
+      access: 'private',
       contentType: file.type,
     });
 

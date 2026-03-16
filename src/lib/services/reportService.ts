@@ -95,7 +95,7 @@ export class ReportService {
             const fileName = `energy-report-${reportData.buildingId}-${reportData.year}-${reportData.month}.pdf`;
             
             const blob = await put(fileName, pdfBuffer, {
-              access: 'public',
+              access: 'private',
               contentType: 'application/pdf',
             });
 

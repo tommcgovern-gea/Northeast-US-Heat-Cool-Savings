@@ -69,7 +69,7 @@ export class EnergyService {
       districtSteamMBTU?: number;
       totalKBTU: number;
     },
-    uploadedBy: string
+    uploadedBy: string | null
   ): Promise<UtilityConsumption> {
     const result = await sql`
       INSERT INTO utility_consumption (
@@ -108,7 +108,7 @@ export class EnergyService {
     year: number,
     hdd: number,
     cdd: number,
-    uploadedBy: string
+    uploadedBy: string | null
   ): Promise<DegreeDays> {
     const result = await sql`
       INSERT INTO degree_days (

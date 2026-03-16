@@ -12,9 +12,12 @@ export interface SMSResult {
   error?: string;
 }
 
-/** Normalize phone: remove spaces, ensure E.164. */
+/** Normalize to E.164 for Twilio: strip spaces/dashes, ensure + prefix for US. */
 function normalizePhone(phone: string): string {
-  return phone.replace(/\s/g, '');
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  if (digits.length === 10 && /^[2-9]/.test(digits)) return `+1${digits}`;
+  return phone.replace(/\s/g, '').replace(/^([0-9])/, '+$1');
 }
 
 export async function sendSMS(to: string, message: string): Promise<SMSResult> {

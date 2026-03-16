@@ -120,10 +120,24 @@ export class MessageService {
         }
 
         if (msg.channel === 'sms' && phone) {
-          const smsResult = await sendSMS(phone, msg.content);
+          // Twilio trial (error 30044) limits SMS length; keep under 160 chars. Prefer including upload URL.
+          const maxSmsLen = 160;
+          const urlMatch = msg.content.match(/https?:\/\/[^\s]+/);
+          const uploadUrl = urlMatch ? urlMatch[0].replace(/[.)]\s*$/, '') : '';
+          let smsBody: string;
+          if (uploadUrl && (msg.message_type === 'daily_summary' || msg.message_type === 'alert')) {
+            const withPrefix = `Upload: ${uploadUrl}`;
+            smsBody = withPrefix.length <= maxSmsLen ? withPrefix : (uploadUrl.length <= maxSmsLen ? uploadUrl : 'Check email for upload link.');
+          } else {
+            smsBody = msg.content.length <= maxSmsLen ? msg.content : msg.content.slice(0, maxSmsLen - 3) + '…';
+          }
+          const smsResult = await sendSMS(phone, smsBody);
           success = smsResult.success;
           deliveryStatus = success ? 'delivered' : (smsResult.error ? `failed: ${smsResult.error}`.slice(0, 50) : 'failed');
           error = smsResult.error;
+          if (!success && smsResult.error) {
+            console.error(`SMS failed to ${phone}:`, smsResult.error);
+          }
         }
         if (msg.channel === 'email' && email) {
           const subject =
@@ -184,6 +198,7 @@ export class MessageService {
 
     for (const building of activeBuildings) {
       const buildingUsers = await db.getBuildingUsers(building.id);
+      const buildingRecipients = await db.getRecipients(building.id);
 
       const messageType = alert.alert_type === 'sudden_fluctuation' ? 'alert' : 'daily_summary';
       const tempData = alert.temperature_data;
@@ -207,6 +222,10 @@ export class MessageService {
       for (const u of buildingUsers) {
         if (!u.is_active) continue;
         messageItems.push({ alertLogId, buildingId: building.id, userId: u.id, messageType, content });
+      }
+      for (const r of buildingRecipients) {
+        if (!r.is_active) continue;
+        messageItems.push({ alertLogId, buildingId: building.id, recipientId: r.id, messageType, content });
       }
     }
 

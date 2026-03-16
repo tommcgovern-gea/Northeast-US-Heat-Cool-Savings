@@ -102,6 +102,7 @@ export async function GET(
     const energyReportRows = toRows(energyReportResult);
 
     const latestEnergyReport = energyReportRows.length > 0 ? {
+      id: energyReportRows[0].id,
       month: energyReportRows[0].month,
       year: energyReportRows[0].year,
       savingsPercentage: Number(energyReportRows[0].savings_percentage),

@@ -62,6 +62,8 @@ export default function EnergyPage() {
   const [uploadMode, setUploadMode] = useState<"manual" | "excel">("manual");
   const [excelType, setExcelType] = useState<"utility" | "degree-days">("utility");
   const [excelUploading, setExcelUploading] = useState(false);
+  const [uploadManualLoading, setUploadManualLoading] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
   const [uploadFormData, setUploadFormData] = useState({
     month: "",
     year: "",
@@ -76,6 +78,8 @@ export default function EnergyPage() {
     year: "",
     emailTo: "",
   });
+  const [pdfOpeningId, setPdfOpeningId] = useState<string | null>(null);
+  const [linkCopiedReportId, setLinkCopiedReportId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBuildings();
@@ -132,6 +136,7 @@ export default function EnergyPage() {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
+    setUploadManualLoading(true);
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
@@ -180,6 +185,8 @@ export default function EnergyPage() {
       fetchEnergyData();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setUploadManualLoading(false);
     }
   };
 
@@ -236,6 +243,7 @@ export default function EnergyPage() {
 
   const handleGenerateReport = async (e: React.FormEvent) => {
     e.preventDefault();
+    setReportLoading(true);
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
@@ -270,6 +278,8 @@ export default function EnergyPage() {
       alert("Report generated successfully!");
     } catch (err: any) {
       setError(err.message || "Failed to generate report");
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -460,15 +470,49 @@ export default function EnergyPage() {
                         {report.savingsKBTU.toLocaleString()} kBTU)
                       </p>
                     </div>
-                    {report.pdfUrl && (
-                      <a
-                        href={report.pdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-                      >
-                        View PDF
-                      </a>
+                    {report.id && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const token = localStorage.getItem("token");
+                            if (!token) return;
+                            const tr = await fetch(`/api/reports/${report.id}/pdf-token`, {
+                              headers: { Authorization: `Bearer ${token}` },
+                            });
+                            if (!tr.ok) return;
+                            const { token: linkToken } = await tr.json();
+                            if (!linkToken) return;
+                            window.open(
+                              `${window.location.origin}/api/reports/${report.id}/pdf?t=${linkToken}`,
+                              "_blank"
+                            );
+                          }}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                        >
+                          View PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const token = localStorage.getItem("token");
+                            if (!token) return;
+                            const tr = await fetch(`/api/reports/${report.id}/pdf-token`, {
+                              headers: { Authorization: `Bearer ${token}` },
+                            });
+                            if (!tr.ok) return;
+                            const { token: linkToken } = await tr.json();
+                            if (!linkToken) return;
+                            const url = `${window.location.origin}/api/reports/${report.id}/pdf?t=${linkToken}`;
+                            await navigator.clipboard.writeText(url);
+                            setLinkCopiedReportId(report.id);
+                            setTimeout(() => setLinkCopiedReportId(null), 2000);
+                          }}
+                          className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 border border-gray-300"
+                        >
+                          {linkCopiedReportId === report.id ? "Copied!" : "Copy link"}
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -669,9 +713,10 @@ export default function EnergyPage() {
                 <div className="mt-6 flex flex-row-reverse gap-2 border-t border-gray-200 pt-4">
                   <button
                     type="submit"
-                    className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm"
+                    disabled={uploadManualLoading}
+                    className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 sm:text-sm"
                   >
-                    Upload
+                    {uploadManualLoading ? "Uploading…" : "Upload"}
                   </button>
                   <button
                     type="button"
@@ -818,14 +863,16 @@ export default function EnergyPage() {
                 <div className="mt-6 flex flex-row-reverse gap-2 border-t border-gray-200 pt-4">
                   <button
                     type="submit"
-                    className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:text-sm"
+                    disabled={reportLoading}
+                    className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 sm:text-sm"
                   >
-                    Generate
+                    {reportLoading ? "Generating…" : "Generate"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowReportModal(false)}
-                    className="rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 sm:text-sm"
+                    disabled={reportLoading}
+                    className="rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 disabled:opacity-50 sm:text-sm"
                   >
                     Cancel
                   </button>
