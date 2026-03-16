@@ -6,8 +6,11 @@ import { messageService } from "@/lib/services/messageService";
 const CRON_SECRET = process.env.CRON_SECRET;
 
 function verifyCronSecret(req: NextRequest): boolean {
-  const secret = req.headers.get("x-cron-secret");
-  return !!CRON_SECRET && secret === CRON_SECRET;
+  if (!CRON_SECRET) return false;
+  const headerSecret = req.headers.get("x-cron-secret");
+  const authHeader = req.headers.get("authorization");
+  const bearerSecret = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  return headerSecret === CRON_SECRET || bearerSecret === CRON_SECRET;
 }
 
 export const checkAlerts = async (req: NextRequest) => {

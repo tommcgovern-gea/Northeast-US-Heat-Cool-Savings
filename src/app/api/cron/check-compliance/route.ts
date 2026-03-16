@@ -11,18 +11,32 @@ function verifyCronSecret(req: NextRequest): boolean {
   return headerSecret === CRON_SECRET || bearerSecret === CRON_SECRET;
 }
 
+async function handleCron(req: NextRequest) {
+  if (!verifyCronSecret(req)) {
+    return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+  }
+  const warningsSent = await complianceService.checkAndSendWarnings();
+  return NextResponse.json({
+    warningsSent,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    return await handleCron(req);
+  } catch (error) {
+    console.error('Error checking compliance:', error);
+    return NextResponse.json(
+      { message: 'Error checking compliance' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    if (!verifyCronSecret(req)) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
-
-    const warningsSent = await complianceService.checkAndSendWarnings();
-
-    return NextResponse.json({
-      warningsSent,
-      timestamp: new Date().toISOString(),
-    });
+    return await handleCron(req);
   } catch (error) {
     console.error('Error checking compliance:', error);
     return NextResponse.json(

@@ -309,22 +309,37 @@ export default function BuildingDashboard() {
                       if (!report) return;
                       const reportId = (report as { id?: string }).id;
                       if (!reportId) return;
-                      const token = localStorage.getItem("token");
-                      if (!token) return;
-                      const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                      });
-                      if (!tr.ok) return;
-                      const { token: linkToken } = await tr.json();
-                      if (!linkToken) return;
-                      const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
-                      await navigator.clipboard.writeText(url);
-                      setLinkCopied(true);
-                      setTimeout(() => setLinkCopied(false), 2000);
+                      try {
+                        const token = localStorage.getItem("token");
+                        if (!token) return;
+                        const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        if (!tr.ok) return;
+                        const { token: linkToken } = await tr.json();
+                        if (!linkToken) return;
+                        const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
+                        if (navigator.clipboard?.writeText) {
+                          await navigator.clipboard.writeText(url);
+                        } else {
+                          const ta = document.createElement("textarea");
+                          ta.value = url;
+                          ta.style.position = "fixed";
+                          ta.style.opacity = "0";
+                          document.body.appendChild(ta);
+                          ta.select();
+                          document.execCommand("copy");
+                          document.body.removeChild(ta);
+                        }
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 2500);
+                      } catch {
+                        // copy failed
+                      }
                     }}
-                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700"
+                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700 min-w-[5.5rem]"
                   >
-                    {linkCopied ? "Copied!" : "Copy link"}
+                    {linkCopied ? "Copied" : "Copy link"}
                   </button>
                 )}
               </div>
