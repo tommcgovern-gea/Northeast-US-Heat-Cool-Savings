@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/check-alerts",
-      "schedule": "0 * * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/daily-summary",
@@ -10,11 +10,11 @@
     },
     {
       "path": "/api/messages/send-pending",
-      "schedule": "15 * * * *"
+      "schedule": "15 10 * * *"
     },
     {
       "path": "/api/cron/check-compliance",
-      "schedule": "0 */2 * * *"
+      "schedule": "0 11 * * *"
     }
   ]
 }
