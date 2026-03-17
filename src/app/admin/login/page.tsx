@@ -29,13 +29,12 @@ export default function LoginPage() {
       if (!response.ok) {
         throw new Error(data.message || "Login failed");
       }
+      if (data.role !== "ADMIN" && data.role !== "STAFF") {
+        throw new Error("Invalid credentials. This sign-in is for admin and staff only.");
+      }
 
       localStorage.setItem("token", data.token);
-      if (data.role === "BUILDING") {
-        router.push("/building");
-      } else {
-        router.push("/admin");
-      }
+      router.push("/admin");
     } catch (err: any) {
       setError(err.message);
     } finally {

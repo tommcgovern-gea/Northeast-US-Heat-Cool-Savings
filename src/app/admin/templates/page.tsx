@@ -1,6 +1,51 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
+import { ConfirmModal } from "@/components/ConfirmModal";
+
+const VARIABLE_HELP = [
+  {
+    token: "temperatureChange",
+    description: "Change in temperature (e.g. +5°F)",
+  },
+  {
+    token: "timeWindow",
+    description: "Time period for the forecast (e.g. next 24 hours)",
+  },
+  {
+    token: "currentTemp",
+    description: "Current temperature at alert time",
+  },
+  {
+    token: "futureTemp",
+    description: "Predicted temperature for the window",
+  },
+  {
+    token: "averageTemp",
+    description: "Average temperature over the period",
+  },
+  {
+    token: "minTemp",
+    description: "Minimum temperature in the period",
+  },
+  {
+    token: "maxTemp",
+    description: "Maximum temperature in the period",
+  },
+  {
+    token: "cityName",
+    description: "Name of the city",
+  },
+  {
+    token: "buildingName",
+    description: "Name of the building",
+  },
+  {
+    token: "uploadUrl",
+    description: "Link to the latest energy/photo upload",
+  },
+] as const;
 
 interface Template {
   id: string;
@@ -24,12 +69,15 @@ export default function TemplatesPage() {
   const [selectedCity, setSelectedCity] = useState<string>("");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
   const [error, setError] = useState("");
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [formData, setFormData] = useState({
     content: "",
     subject: "",
   });
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchCities();
@@ -37,9 +85,12 @@ export default function TemplatesPage() {
 
   useEffect(() => {
     if (selectedCity) {
+      setEditingTemplate(null);
+      setTemplatesLoading(true);
       fetchTemplates();
     } else {
       setTemplates([]);
+      setTemplatesLoading(false);
     }
   }, [selectedCity]);
 
@@ -84,6 +135,8 @@ export default function TemplatesPage() {
       setTemplates(data.templates || []);
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setTemplatesLoading(false);
     }
   };
 
@@ -156,20 +209,26 @@ export default function TemplatesPage() {
     }
   };
 
-  const handleDeleteTemplate = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this template? Default template will be used if deleted.")) return;
+  const handleDeleteTemplateClick = (id: string) => {
+    setDeleteTargetId(id);
+  };
 
+  const handleDeleteTemplateConfirm = async () => {
+    if (!deleteTargetId) return;
     try {
+      setDeleteLoading(true);
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/templates/${id}`, {
+      const response = await fetch(`/api/admin/templates/${deleteTargetId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!response.ok) throw new Error("Failed to delete template");
+      setDeleteTargetId(null);
       fetchTemplates();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -198,32 +257,30 @@ export default function TemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Message Templates</h1>
           <p className="mt-1 text-sm text-gray-800">
             Customize message templates per city
           </p>
         </div>
-      </div>
-
-      {/* City Selector */}
-      <div className="bg-white shadow rounded-lg p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Select City
-        </label>
-        <select
-          value={selectedCity}
-          onChange={(e) => setSelectedCity(e.target.value)}
-          className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-        >
-          <option value="">Select a city</option>
-          {cities.map((city) => (
-            <option key={city.id} value={city.id}>
-              {city.name}, {city.state}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+            Select City:
+          </label>
+          <select
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 min-w-[180px]"
+          >
+            <option value="">Select a city</option>
+            {cities.map((city) => (
+              <option key={city.id} value={city.id}>
+                {city.name}, {city.state}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {error && (
@@ -233,8 +290,14 @@ export default function TemplatesPage() {
       )}
 
       {selectedCity && (
-        <div className="space-y-4">
-          {templateTypes.map((type) => {
+        <div className="min-h-[200px]">
+          {templatesLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {templateTypes.map((type) => {
             const template = templates.find((t) => t.templateType === type.value);
             return (
               <div key={type.value} className="bg-white shadow rounded-lg p-6">
@@ -284,9 +347,29 @@ export default function TemplatesPage() {
                               setFormData({ ...formData, content: e.target.value })
                             }
                           />
-                          <p className="mt-2 text-xs text-gray-800">
-                            Available variables: {`{{temperatureChange}}`}, {`{{timeWindow}}`}, {`{{currentTemp}}`}, {`{{futureTemp}}`}, {`{{averageTemp}}`}, {`{{minTemp}}`}, {`{{maxTemp}}`}, {`{{cityName}}`}, {`{{buildingName}}`}, {`{{uploadUrl}}`}
-                          </p>
+                          {(() => {
+                            const usedVariables = VARIABLE_HELP.filter((v) =>
+                              formData.content.includes(`{{${v.token}}}`)
+                            );
+                            if (usedVariables.length === 0) return null;
+                            return (
+                              <div className="mt-2 text-xs text-gray-800 bg-gray-50 rounded p-3 border border-gray-200">
+                                <p className="font-medium text-gray-900 mb-2">
+                                  Available variables in this template:
+                                </p>
+                                <ul className="space-y-1 list-none">
+                                  {usedVariables.map((v) => (
+                                    <li key={v.token}>
+                                      <code className="bg-white px-1 rounded">
+                                        {`{{${v.token}}}`}
+                                      </code>{" "}
+                                      — {v.description}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            );
+                          })()}
                         </div>
                         <div className="flex justify-end space-x-3">
                           <button
@@ -310,18 +393,22 @@ export default function TemplatesPage() {
                             {template.content}
                           </pre>
                         </div>
-                        <div className="flex space-x-3">
+                        <div className="flex items-center gap-1">
                           <button
+                            type="button"
                             onClick={() => handleEdit(template)}
-                            className="text-sm text-blue-600 hover:text-blue-900"
+                            className="p-1.5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50"
+                            title="Edit template"
                           >
-                            Edit Template
+                            <IconEdit />
                           </button>
                           <button
-                            onClick={() => handleDeleteTemplate(template.id)}
-                            className="text-sm text-red-600 hover:text-red-900"
+                            type="button"
+                            onClick={() => handleDeleteTemplateClick(template.id)}
+                            className="p-1.5 text-red-600 hover:text-red-900 rounded hover:bg-red-50"
+                            title="Delete"
                           >
-                            Delete
+                            <IconDelete />
                           </button>
                         </div>
                       </div>
@@ -335,8 +422,22 @@ export default function TemplatesPage() {
               </div>
             );
           })}
+            </div>
+          )}
         </div>
       )}
+
+      <ConfirmModal
+        open={deleteTargetId !== null}
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={handleDeleteTemplateConfirm}
+        title="Delete template"
+        message="Are you sure you want to delete this template? Default template will be used if deleted."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+      />
     </div>
   );
 }

@@ -57,19 +57,19 @@ export async function GET(req: NextRequest) {
 
     const complianceData = await (async () => {
       const ids = activeBuildings.map((b) => b.id);
-      const rateMap = await complianceService.getBuildingComplianceRatesBatch(ids, days);
-      return activeBuildings.map((building) => ({
-        buildingId: building.id,
-        buildingName: building.name,
-        complianceRate: rateMap.get(building.id) ?? null,
-      }));
+      const [rateMap, globalRate] = await Promise.all([
+        complianceService.getBuildingComplianceRatesBatch(ids, days),
+        complianceService.getGlobalComplianceRate(days),
+      ]);
+      return {
+        buildings: activeBuildings.map((building) => ({
+          buildingId: building.id,
+          buildingName: building.name,
+          complianceRate: rateMap.get(building.id) ?? null,
+        })),
+        overallComplianceRate: globalRate,
+      };
     })();
-
-    const buildingsWithData = complianceData.filter((b) => b.complianceRate != null);
-    const overallComplianceRate =
-      buildingsWithData.length > 0
-        ? buildingsWithData.reduce((sum, b) => sum + (b.complianceRate ?? 0), 0) / buildingsWithData.length
-        : null;
 
     const recentAlertsResult = await sql`
       SELECT 
@@ -168,11 +168,11 @@ export async function GET(req: NextRequest) {
         totalMessages,
         totalAlerts,
         failedMessages,
-        overallComplianceRate: overallComplianceRate != null ? Math.round(overallComplianceRate * 10) / 10 : null,
+        overallComplianceRate: complianceData.overallComplianceRate,
         days,
       },
       cityStats,
-      buildingCompliance: complianceData,
+      buildingCompliance: complianceData.buildings,
       recentAlerts: recentAlertsRows.map((alert: any) => ({
         id: alert.id,
         cityName: alert.city_name,

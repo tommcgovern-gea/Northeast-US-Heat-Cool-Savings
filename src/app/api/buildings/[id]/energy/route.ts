@@ -51,39 +51,56 @@ export async function GET(
       });
     }
 
-    const utilityHistory = await energyService.getBuildingUtilityHistory(params.id, 36);
-    const building = await db.getBuildings(undefined, params.id);
-    const cityId = building?.[0]?.city_id;
-    const degreeDays = cityId
-      ? await energyService.getCityDegreeDaysHistory(cityId, 24)
-      : [];
+    const utilityPage = Math.max(1, parseInt(req.nextUrl.searchParams.get('utilityPage') || '1', 10));
+    const utilityLimit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get('utilityLimit') || '10', 10)));
+    const degreeDaysPage = Math.max(1, parseInt(req.nextUrl.searchParams.get('degreeDaysPage') || '1', 10));
+    const degreeDaysLimit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get('degreeDaysLimit') || '10', 10)));
 
-    const baselinesResult = await sql`
-      SELECT * FROM energy_baselines
-      WHERE building_id = ${params.id}
-      ORDER BY month
-    `;
+    const [utilityFull, buildingList] = await Promise.all([
+      energyService.getBuildingUtilityHistory(params.id, 500),
+      db.getBuildings(undefined, params.id),
+    ]);
+    const building = buildingList?.[0];
+    const cityId = building?.city_id;
 
-    const recentReportsResult = await sql`
-      SELECT * FROM energy_reports
-      WHERE building_id = ${params.id}
-      ORDER BY year DESC, month DESC
-      LIMIT 12
-    `;
+    const monthsWithEnoughData = new Set<number>();
+    const byMonth = new Map<number, Set<number>>();
+    for (const u of utilityFull ?? []) {
+      if (!byMonth.has(u.month)) byMonth.set(u.month, new Set());
+      byMonth.get(u.month)!.add(u.year);
+    }
+    byMonth.forEach((years, month) => {
+      if (years.size >= 3) monthsWithEnoughData.add(month);
+    });
+    for (const month of monthsWithEnoughData) {
+      await energyService.calculateBaseline(params.id, month);
+    }
+
+    const [utilityPaginated, degreeDaysPaginated, baselinesResult, recentReportsResult] = await Promise.all([
+      energyService.getBuildingUtilityHistoryPaginated(params.id, utilityPage, utilityLimit),
+      cityId
+        ? energyService.getCityDegreeDaysHistoryPaginated(cityId, degreeDaysPage, degreeDaysLimit)
+        : Promise.resolve({ items: [], total: 0 }),
+      sql`SELECT * FROM energy_baselines WHERE building_id = ${params.id} ORDER BY month`,
+      sql`SELECT * FROM energy_reports WHERE building_id = ${params.id} ORDER BY year DESC, month DESC LIMIT 12`,
+    ]);
 
     const baselinesRows = toRows(baselinesResult);
     const recentReportsRows = toRows(recentReportsResult);
 
     return NextResponse.json({
       buildingId: params.id,
-      degreeDays: degreeDays.map((dd: any) => ({
+      degreeDays: degreeDaysPaginated.items.map((dd: any) => ({
         id: dd.id,
         month: dd.month,
         year: dd.year,
         hdd: Number(dd.heating_degree_days),
         cdd: Number(dd.cooling_degree_days),
       })),
-      utilityHistory: (utilityHistory ?? []).map(u => ({
+      degreeDaysTotal: degreeDaysPaginated.total,
+      degreeDaysPage,
+      degreeDaysLimit,
+      utilityHistory: utilityPaginated.items.map(u => ({
         id: u.id,
         month: u.month,
         year: u.year,
@@ -94,6 +111,9 @@ export async function GET(
         totalKBTU: Number(u.total_kbtu),
         uploadedAt: u.created_at,
       })),
+      utilityTotal: utilityPaginated.total,
+      utilityPage,
+      utilityLimit,
       baselines: baselinesRows.map((b: any) => ({
         id: b.id,
         month: b.month,

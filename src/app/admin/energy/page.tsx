@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PaginationBar } from "@/components/PaginationBar";
 
 interface Building {
   id: string;
@@ -18,6 +19,9 @@ interface EnergyData {
     hdd: number;
     cdd: number;
   }>;
+  degreeDaysTotal?: number;
+  degreeDaysPage?: number;
+  degreeDaysLimit?: number;
   utilityHistory: Array<{
     id: string;
     month: number;
@@ -29,6 +33,9 @@ interface EnergyData {
     totalKBTU: number;
     uploadedAt: string;
   }>;
+  utilityTotal?: number;
+  utilityPage?: number;
+  utilityLimit?: number;
   baselines: Array<{
     id: string;
     month: number;
@@ -56,6 +63,7 @@ export default function EnergyPage() {
   const [selectedBuilding, setSelectedBuilding] = useState<string>("");
   const [energyData, setEnergyData] = useState<EnergyData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [energyLoading, setEnergyLoading] = useState(false);
   const [error, setError] = useState("");
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -64,6 +72,7 @@ export default function EnergyPage() {
   const [excelUploading, setExcelUploading] = useState(false);
   const [uploadManualLoading, setUploadManualLoading] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [uploadManualDataType, setUploadManualDataType] = useState<"utility" | "degree-days">("utility");
   const [uploadFormData, setUploadFormData] = useState({
     month: "",
     year: "",
@@ -72,6 +81,8 @@ export default function EnergyPage() {
     fuelOilGallons: "",
     districtSteamMBTU: "",
     totalKBTU: "",
+    hdd: "",
+    cdd: "",
   });
   const [reportFormData, setReportFormData] = useState({
     month: "",
@@ -80,6 +91,10 @@ export default function EnergyPage() {
   });
   const [pdfOpeningId, setPdfOpeningId] = useState<string | null>(null);
   const [linkCopiedReportId, setLinkCopiedReportId] = useState<string | null>(null);
+  const [utilityPage, setUtilityPage] = useState(1);
+  const [utilityLimit, setUtilityLimit] = useState(10);
+  const [degreeDaysPage, setDegreeDaysPage] = useState(1);
+  const [degreeDaysLimit, setDegreeDaysLimit] = useState(10);
 
   useEffect(() => {
     fetchBuildings();
@@ -87,11 +102,20 @@ export default function EnergyPage() {
 
   useEffect(() => {
     if (selectedBuilding) {
+      setUtilityPage(1);
+      setDegreeDaysPage(1);
+      setEnergyData(null);
+      setEnergyLoading(true);
       fetchEnergyData();
     } else {
       setEnergyData(null);
     }
   }, [selectedBuilding]);
+
+  useEffect(() => {
+    if (!selectedBuilding || energyData === null) return;
+    fetchEnergyData();
+  }, [utilityPage, utilityLimit, degreeDaysPage, degreeDaysLimit]);
 
   const fetchBuildings = async () => {
     try {
@@ -121,9 +145,16 @@ export default function EnergyPage() {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const response = await fetch(`/api/buildings/${selectedBuilding}/energy`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const params = new URLSearchParams({
+        utilityPage: String(utilityPage),
+        utilityLimit: String(utilityLimit),
+        degreeDaysPage: String(degreeDaysPage),
+        degreeDaysLimit: String(degreeDaysLimit),
       });
+      const response = await fetch(
+        `/api/buildings/${selectedBuilding}/energy?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       if (!response.ok) throw new Error("Failed to fetch energy data");
 
@@ -131,6 +162,8 @@ export default function EnergyPage() {
       setEnergyData(data);
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setEnergyLoading(false);
     }
   };
 
@@ -141,35 +174,61 @@ export default function EnergyPage() {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const response = await fetch("/api/staff/upload-utility", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          buildingId: selectedBuilding,
-          month: parseInt(uploadFormData.month),
-          year: parseInt(uploadFormData.year),
-          electricKWH: uploadFormData.electricKWH
-            ? parseFloat(uploadFormData.electricKWH)
-            : undefined,
-          gasTherms: uploadFormData.gasTherms
-            ? parseFloat(uploadFormData.gasTherms)
-            : undefined,
-          fuelOilGallons: uploadFormData.fuelOilGallons
-            ? parseFloat(uploadFormData.fuelOilGallons)
-            : undefined,
-          districtSteamMBTU: uploadFormData.districtSteamMBTU
-            ? parseFloat(uploadFormData.districtSteamMBTU)
-            : undefined,
-          totalKBTU: parseFloat(uploadFormData.totalKBTU),
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to upload utility data");
+      if (uploadManualDataType === "degree-days") {
+        const building = buildings.find((b) => b.id === selectedBuilding);
+        if (!building?.cityId) {
+          setError("Selected building has no city");
+          setUploadManualLoading(false);
+          return;
+        }
+        const response = await fetch("/api/staff/upload-degree-days", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            cityId: building.cityId,
+            month: parseInt(uploadFormData.month),
+            year: parseInt(uploadFormData.year),
+            heatingDegreeDays: parseFloat(uploadFormData.hdd),
+            coolingDegreeDays: parseFloat(uploadFormData.cdd || "0"),
+          }),
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || "Failed to upload degree days");
+        }
+      } else {
+        const response = await fetch("/api/staff/upload-utility", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            buildingId: selectedBuilding,
+            month: parseInt(uploadFormData.month),
+            year: parseInt(uploadFormData.year),
+            electricKWH: uploadFormData.electricKWH
+              ? parseFloat(uploadFormData.electricKWH)
+              : undefined,
+            gasTherms: uploadFormData.gasTherms
+              ? parseFloat(uploadFormData.gasTherms)
+              : undefined,
+            fuelOilGallons: uploadFormData.fuelOilGallons
+              ? parseFloat(uploadFormData.fuelOilGallons)
+              : undefined,
+            districtSteamMBTU: uploadFormData.districtSteamMBTU
+              ? parseFloat(uploadFormData.districtSteamMBTU)
+              : undefined,
+            totalKBTU: parseFloat(uploadFormData.totalKBTU),
+          }),
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || "Failed to upload utility data");
+        }
       }
 
       setShowUploadModal(false);
@@ -181,6 +240,8 @@ export default function EnergyPage() {
         fuelOilGallons: "",
         districtSteamMBTU: "",
         totalKBTU: "",
+        hdd: "",
+        cdd: "",
       });
       fetchEnergyData();
     } catch (err: any) {
@@ -302,7 +363,12 @@ export default function EnergyPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Energy & Reports</h1>
           <p className="mt-1 text-sm text-gray-800">
-            Manage utility data and generate energy savings reports
+            Manage utility data and generate energy savings reports.
+          </p>
+          <p className="mt-1 text-xs text-gray-700">
+            For each month you want a report, upload <span className="font-semibold">both</span>{" "}
+            utility data (kBTU for this building) and degree days (HDD/CDD for this
+            building’s city) for the <span className="font-semibold">same month and year</span>.
           </p>
         </div>
         <div className="flex space-x-2">
@@ -330,7 +396,10 @@ export default function EnergyPage() {
         </label>
         <select
           value={selectedBuilding}
-          onChange={(e) => setSelectedBuilding(e.target.value)}
+          onChange={(e) => {
+            setSelectedBuilding(e.target.value);
+            setError("");
+          }}
           className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         >
           <option value="">Select a building</option>
@@ -348,10 +417,16 @@ export default function EnergyPage() {
         </div>
       )}
 
-      {energyData && (
+      {selectedBuilding && energyLoading && (
+        <div className="flex items-center justify-center h-32">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+        </div>
+      )}
+
+      {energyData && !energyLoading && (
         <>
           {/* Degree Days (HDD/CDD) */}
-          {(energyData.degreeDays?.length ?? 0) > 0 ? (
+          {(energyData.degreeDaysTotal ?? 0) > 0 ? (
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-4">
                 Degree Days (HDD / CDD)
@@ -359,6 +434,18 @@ export default function EnergyPage() {
               <p className="text-sm text-gray-800 mb-4">
                 Heating Degree Days (HDD) and Cooling Degree Days (CDD) for this city. Upload via Excel (Degree Days type).
               </p>
+              <PaginationBar
+                page={energyData.degreeDaysPage ?? 1}
+                limit={energyData.degreeDaysLimit ?? 10}
+                total={energyData.degreeDaysTotal ?? 0}
+                onPageChange={setDegreeDaysPage}
+                onLimitChange={(l) => {
+                  setDegreeDaysLimit(l);
+                  setDegreeDaysPage(1);
+                }}
+                itemLabel="rows"
+                part="top"
+              />
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -391,6 +478,18 @@ export default function EnergyPage() {
                   </tbody>
                 </table>
               </div>
+              <PaginationBar
+                page={energyData.degreeDaysPage ?? 1}
+                limit={energyData.degreeDaysLimit ?? 10}
+                total={energyData.degreeDaysTotal ?? 0}
+                onPageChange={setDegreeDaysPage}
+                onLimitChange={(l) => {
+                  setDegreeDaysLimit(l);
+                  setDegreeDaysPage(1);
+                }}
+                itemLabel="rows"
+                part="bottom"
+              />
             </div>
           ) : (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
@@ -407,11 +506,11 @@ export default function EnergyPage() {
           )}
 
           {/* Baselines */}
-          {energyData.baselines.length > 0 && (
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-4">
                 Calculated Baselines
               </h2>
+            {energyData.baselines.length > 0 ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {energyData.baselines.map((baseline) => (
                   <div
@@ -430,13 +529,22 @@ export default function EnergyPage() {
                       kBTU per {baseline.baselineType === "heating" ? "HDD" : "CDD"}
                     </p>
                     <p className="text-xs text-gray-800 mt-2">
-                      {baseline.dataPoints} data points
+                      Baseline from{" "}
+                      {new Date(baseline.baselinePeriodStart).getFullYear()}–
+                      {new Date(baseline.baselinePeriodEnd).getFullYear()}
                     </p>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm font-medium text-gray-800 mb-1">No baselines yet</p>
+                <p className="text-sm text-gray-600">
+                  Baselines are calculated automatically when you upload at least <strong>3 years</strong> of utility data for the <strong>same month</strong> and degree days exist for this building’s city for those months. Use <strong>+ Upload Data</strong> to add utility (and Degree Days Excel if needed), then refresh; the section will update.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Recent Reports */}
           {energyData.recentReports.length > 0 && (
@@ -526,6 +634,18 @@ export default function EnergyPage() {
               <h2 className="text-lg font-medium text-gray-900 mb-4">
                 Utility Consumption History
               </h2>
+              <PaginationBar
+                page={energyData.utilityPage ?? 1}
+                limit={energyData.utilityLimit ?? 10}
+                total={energyData.utilityTotal ?? 0}
+                onPageChange={setUtilityPage}
+                onLimitChange={(l) => {
+                  setUtilityLimit(l);
+                  setUtilityPage(1);
+                }}
+                itemLabel="rows"
+                part="top"
+              />
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -545,7 +665,7 @@ export default function EnergyPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {energyData.utilityHistory.map((utility) => (
+                    {(energyData.utilityHistory ?? []).map((utility) => (
                       <tr key={utility.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {monthNames[utility.month - 1]} {utility.year}
@@ -568,6 +688,18 @@ export default function EnergyPage() {
                   </tbody>
                 </table>
               </div>
+              <PaginationBar
+                page={energyData.utilityPage ?? 1}
+                limit={energyData.utilityLimit ?? 10}
+                total={energyData.utilityTotal ?? 0}
+                onPageChange={setUtilityPage}
+                onLimitChange={(l) => {
+                  setUtilityLimit(l);
+                  setUtilityPage(1);
+                }}
+                itemLabel="rows"
+                part="bottom"
+              />
             </div>
           </div>
         </>
@@ -584,9 +716,15 @@ export default function EnergyPage() {
             />
             <div className="relative z-10 w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl ring-1 ring-black/10">
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
                   Upload Data
                 </h3>
+                <p className="text-xs text-gray-700 mb-3">
+                  To support baseline and savings reports, make sure you upload{" "}
+                  <span className="font-semibold">utility</span> data for this building{" "}
+                  and matching <span className="font-semibold">degree days</span> data for
+                  its city for the same month and year (manual or Excel).
+                </p>
                 <div className="flex border-b border-gray-200 mb-4">
                   <button
                     type="button"
@@ -615,10 +753,26 @@ export default function EnergyPage() {
                 {uploadMode === "manual" ? (
               <form onSubmit={handleUpload}>
                   <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">
+                        Data Type *
+                      </label>
+                      <select
+                        required
+                        className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        value={uploadManualDataType}
+                        onChange={(e) =>
+                          setUploadManualDataType(e.target.value as "utility" | "degree-days")
+                        }
+                      >
+                        <option value="utility">Utility (this building)</option>
+                        <option value="degree-days">Degree Days (this building’s city)</option>
+                      </select>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-800">
-                          Month
+                          Month *
                         </label>
                         <select
                           required
@@ -641,7 +795,7 @@ export default function EnergyPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-800">
-                          Year
+                          Year *
                         </label>
                         <input
                           type="number"
@@ -657,58 +811,101 @@ export default function EnergyPage() {
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-800">
-                        Electric (kWh) - Optional
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        value={uploadFormData.electricKWH}
-                        onChange={(e) =>
-                          setUploadFormData({
-                            ...uploadFormData,
-                            electricKWH: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-800">
-                        Gas (therms) - Optional
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        value={uploadFormData.gasTherms}
-                        onChange={(e) =>
-                          setUploadFormData({
-                            ...uploadFormData,
-                            gasTherms: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-800">
-                        Total kBTU *
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        required
-                        className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        value={uploadFormData.totalKBTU}
-                        onChange={(e) =>
-                          setUploadFormData({
-                            ...uploadFormData,
-                            totalKBTU: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
+                    {uploadManualDataType === "degree-days" ? (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-800">
+                            HDD (Heating Degree Days) *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            required
+                            className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            value={uploadFormData.hdd}
+                            onChange={(e) =>
+                              setUploadFormData({
+                                ...uploadFormData,
+                                hdd: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-800">
+                            CDD (Cooling Degree Days) *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            required
+                            className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            value={uploadFormData.cdd}
+                            onChange={(e) =>
+                              setUploadFormData({
+                                ...uploadFormData,
+                                cdd: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-800">
+                            Electric (kWh) - Optional
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            value={uploadFormData.electricKWH}
+                            onChange={(e) =>
+                              setUploadFormData({
+                                ...uploadFormData,
+                                electricKWH: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-800">
+                            Gas (therms) - Optional
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            value={uploadFormData.gasTherms}
+                            onChange={(e) =>
+                              setUploadFormData({
+                                ...uploadFormData,
+                                gasTherms: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-800">
+                            Total kBTU *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            required
+                            className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            value={uploadFormData.totalKBTU}
+                            onChange={(e) =>
+                              setUploadFormData({
+                                ...uploadFormData,
+                                totalKBTU: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 <div className="mt-6 flex flex-row-reverse gap-2 border-t border-gray-200 pt-4">
                   <button
@@ -795,9 +992,15 @@ export default function EnergyPage() {
             <div className="relative z-10 w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl ring-1 ring-black/10">
               <form onSubmit={handleGenerateReport}>
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
                     Generate Energy Report
                   </h3>
+                  <p className="text-xs text-gray-700 mb-3">
+                    Reports are only available for months where this building has{" "}
+                    utility data and its city has degree days (HDD/CDD) for the same
+                    month and year. If either is missing, you&apos;ll see{" "}
+                    <span className="font-semibold">No data available for this period</span>.
+                  </p>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>

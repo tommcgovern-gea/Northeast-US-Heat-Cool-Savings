@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 interface City {
   id: string;
@@ -35,6 +37,8 @@ export default function CitiesPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchCities();
@@ -150,20 +154,26 @@ export default function CitiesPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to (deactivate) this city?")) return;
+  const handleDeleteClick = (id: string) => {
+    setDeleteTargetId(id);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteTargetId) return;
     try {
+      setDeleteLoading(true);
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/cities/${id}`, {
+      const response = await fetch(`/api/cities/${deleteTargetId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!response.ok) throw new Error("Failed to delete city");
+      setDeleteTargetId(null);
       fetchCities();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -229,7 +239,12 @@ export default function CitiesPage() {
             {cities.map((city) => (
               <tr key={city.id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {city.name}
+                  <Link
+                    href={`/admin/cities/${city.id}`}
+                    className="text-gray-900 hover:text-blue-600 hover:underline cursor-pointer"
+                  >
+                    {city.name}
+                  </Link>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {city.state}
@@ -254,19 +269,24 @@ export default function CitiesPage() {
                     {city.isActive ? "Active" : "Inactive"}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <Link
-                    href={`/admin/cities/${city.id}`}
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    Edit
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(city.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    Delete
-                  </button>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/admin/cities/${city.id}`}
+                      className="p-1.5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50"
+                      title="Edit"
+                    >
+                      <IconEdit />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteClick(city.id)}
+                      className="p-1.5 text-red-600 hover:text-red-900 rounded hover:bg-red-50"
+                      title="Delete"
+                    >
+                      <IconDelete />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -477,6 +497,18 @@ export default function CitiesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={deleteTargetId !== null}
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Deactivate city"
+        message="Are you sure you want to deactivate this city?"
+        confirmLabel="Deactivate"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+      />
     </div>
   );
 }

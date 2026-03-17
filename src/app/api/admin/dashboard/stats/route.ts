@@ -49,22 +49,7 @@ export async function GET(req: NextRequest) {
     const totalAlerts = parseInt(String(toRows(totalAlertsResult)[0]?.total ?? 0), 10);
     const failedMessages = parseInt(String(toRows(failedMessagesResult)[0]?.total ?? 0), 10);
 
-    const complianceData = await Promise.all(
-      activeBuildings.map(async (building) => {
-        let rate: number | null = null;
-        try {
-          rate = await complianceService.getBuildingComplianceRate(building.id, days);
-        } catch {
-          // ignore
-        }
-        return { buildingId: building.id, complianceRate: rate };
-      })
-    );
-    const withRate = complianceData.filter((b) => b.complianceRate != null);
-    const overallComplianceRate =
-      withRate.length > 0
-        ? withRate.reduce((sum, b) => sum + (b.complianceRate ?? 0), 0) / withRate.length
-        : null;
+    const overallComplianceRate = await complianceService.getGlobalComplianceRate(days);
 
     return NextResponse.json({
       overview: {
@@ -75,8 +60,7 @@ export async function GET(req: NextRequest) {
         totalMessages,
         totalAlerts,
         failedMessages,
-        overallComplianceRate:
-          overallComplianceRate != null ? Math.round(overallComplianceRate * 10) / 10 : null,
+        overallComplianceRate,
         days,
       },
     });

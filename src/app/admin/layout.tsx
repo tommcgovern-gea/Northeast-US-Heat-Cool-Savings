@@ -69,7 +69,7 @@ export default function AdminLayout({
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    router.push("/admin/login");
+    router.push("/");
   };
 
   // Skip layout for login page
