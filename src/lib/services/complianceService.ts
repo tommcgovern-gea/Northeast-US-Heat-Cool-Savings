@@ -139,12 +139,50 @@ export class ComplianceService {
       ),
       with_upload AS (
         SELECT msgs.id,
-          (EXISTS (SELECT 1 FROM photo_uploads p WHERE p.message_id = msgs.id)
-           AND (NOW()::timestamp - msgs.sent_at::timestamp) <= INTERVAL '2 hours') AS compliant
+          EXISTS (
+            SELECT 1
+            FROM photo_uploads p
+            WHERE p.message_id = msgs.id
+              AND (p.uploaded_at::timestamp - msgs.sent_at::timestamp) <= INTERVAL '2 hours'
+          ) AS compliant
         FROM msgs
       )
       SELECT
         COUNT(*) FILTER (WHERE with_upload.compliant) AS compliant_count,
+        COUNT(*) AS total
+      FROM with_upload
+    `;
+    const rows = toRows(result);
+    const total = parseInt(String(rows[0]?.total ?? 0), 10);
+    if (total === 0) return null;
+    const compliantCount = parseInt(String(rows[0]?.compliant_count ?? 0), 10);
+    return Math.round((compliantCount / total) * 100 * 10) / 10;
+  }
+
+  /** Overall compliance: (compliant messages / total messages) across all buildings. Null if no messages. */
+  async getGlobalComplianceRate(days: number = 30): Promise<number | null> {
+    const { sql } = await import('@/lib/db/client');
+    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const result = await sql`
+      WITH msgs AS (
+        SELECT m.id, m.sent_at
+        FROM messages m
+        WHERE m.message_type IN ('alert', 'daily_summary')
+          AND m.sent_at >= ${startDate.toISOString()}
+          AND m.delivered = true
+      ),
+      with_upload AS (
+        SELECT msgs.id,
+          EXISTS (
+            SELECT 1
+            FROM photo_uploads p
+            WHERE p.message_id = msgs.id
+              AND (p.uploaded_at::timestamp - msgs.sent_at::timestamp) <= INTERVAL '2 hours'
+          ) AS compliant
+        FROM msgs
+      )
+      SELECT
+        COUNT(*) FILTER (WHERE compliant) AS compliant_count,
         COUNT(*) AS total
       FROM with_upload
     `;
@@ -177,8 +215,12 @@ export class ComplianceService {
       ),
       with_upload AS (
         SELECT msgs.building_id, msgs.id,
-          (EXISTS (SELECT 1 FROM photo_uploads p WHERE p.message_id = msgs.id)
-           AND (NOW()::timestamp - msgs.sent_at::timestamp) <= INTERVAL '2 hours') AS compliant
+          EXISTS (
+            SELECT 1
+            FROM photo_uploads p
+            WHERE p.message_id = msgs.id
+              AND (p.uploaded_at::timestamp - msgs.sent_at::timestamp) <= INTERVAL '2 hours'
+          ) AS compliant
         FROM msgs
       ),
       agg AS (

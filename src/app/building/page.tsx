@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PaginationBar } from "@/components/PaginationBar";
 
 interface Building {
   id: string;
@@ -58,7 +59,8 @@ export default function BuildingDashboard() {
   const [buildingsLoaded, setBuildingsLoaded] = useState(false);
   const [error, setError] = useState("");
   const [linkCopied, setLinkCopied] = useState(false);
-  const [viewingUploadId, setViewingUploadId] = useState<string | null>(null);
+  const [messagesPage, setMessagesPage] = useState(1);
+  const [messagesLimit, setMessagesLimit] = useState(10);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -92,6 +94,7 @@ export default function BuildingDashboard() {
     }
     setLoading(true);
     setError("");
+    setMessagesPage(1);
     const token = localStorage.getItem("token");
     if (!token) return;
 
@@ -106,24 +109,6 @@ export default function BuildingDashboard() {
       .catch((err: any) => setError(err.message))
       .finally(() => setLoading(false));
   }, [selectedBuildingId]);
-
-  const handleViewUpload = async (uploadId: string) => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-    setViewingUploadId(uploadId);
-    try {
-      const res = await fetch(`/api/photo-uploads/${uploadId}/file-token`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to get link");
-      const { url } = await res.json();
-      window.open(url, "_blank");
-    } catch {
-      setError("Could not open document");
-    } finally {
-      setViewingUploadId(null);
-    }
-  };
 
   if (loading) {
     return (
@@ -166,26 +151,29 @@ export default function BuildingDashboard() {
 
   return (
     <div className="space-y-6">
-      {buildings.length > 1 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-gray-700">Building:</span>
-          <select
-            value={selectedBuildingId}
-            onChange={(e) => setSelectedBuildingId(e.target.value)}
-            className="border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500"
-          >
-            {buildings.map((b) => (
-              <option key={b.id} value={b.id}>{b.name} – {b.cityName}</option>
-            ))}
-          </select>
+      {/* Building name/address with filter on the right */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">{data.building.name}</h1>
+          <p className="mt-1 text-sm text-gray-800">{data.building.address}</p>
+          {data.building.isPaused && (
+            <div className="mt-2 inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">
+              Building is currently paused
+            </div>
+          )}
         </div>
-      )}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">{data.building.name}</h1>
-        <p className="mt-1 text-sm text-gray-800">{data.building.address}</p>
-        {data.building.isPaused && (
-          <div className="mt-2 inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">
-            Building is currently paused
+        {buildings.length > 1 && (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-sm font-medium text-gray-700">Building:</span>
+            <select
+              value={selectedBuildingId}
+              onChange={(e) => setSelectedBuildingId(e.target.value)}
+              className="border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500"
+            >
+              {buildings.map((b) => (
+                <option key={b.id} value={b.id}>{b.name} – {b.cityName}</option>
+              ))}
+            </select>
           </div>
         )}
       </div>
@@ -253,100 +241,111 @@ export default function BuildingDashboard() {
         </div>
       </div>
 
-      {/* Energy Report */}
-      {data.latestEnergyReport && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">
-            Latest Energy Report
-          </h2>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-800">
-                {monthNames[data.latestEnergyReport.month - 1]}{" "}
-                {data.latestEnergyReport.year}
-              </p>
-              <p className="text-2xl font-bold text-green-600 mt-1">
-                {data.latestEnergyReport.savingsPercentage >= 0 ? "+" : ""}
-                {data.latestEnergyReport.savingsPercentage.toFixed(1)}%
-              </p>
-              <p className="text-sm text-gray-800 mt-1">
-                {data.latestEnergyReport.savingsKBTU >= 0 ? "+" : ""}
-                {data.latestEnergyReport.savingsKBTU.toLocaleString()} kBTU
-              </p>
-            </div>
-            {(data.latestEnergyReport.pdfUrl || (data.latestEnergyReport as { id?: string }).id) && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const report = data.latestEnergyReport;
-                    if (!report) return;
-                    const reportId = (report as { id?: string }).id;
-                    if (!reportId) {
-                      if (report.pdfUrl) window.open(report.pdfUrl, "_blank");
-                      return;
-                    }
-                    const token = localStorage.getItem("token");
-                    if (!token) return;
-                    const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
-                      headers: { Authorization: `Bearer ${token}` },
-                    });
-                    if (!tr.ok) return;
-                    const { token: linkToken } = await tr.json();
-                    if (!linkToken) return;
-                    const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
-                    window.open(url, "_blank");
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  View Report
-                </button>
-                {(data.latestEnergyReport as { id?: string }).id && (
+      {/* Energy Report — single row like admin */}
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        {data.latestEnergyReport ? (
+          <div className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4 min-w-0 flex-1">
+                <div className="shrink-0 w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center p-1">
+                  <span className="text-sm font-bold text-emerald-700 leading-tight text-center">
+                    {data.latestEnergyReport.savingsPercentage >= 0 ? "+" : ""}
+                    {data.latestEnergyReport.savingsPercentage.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Latest Energy Report
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 wrap-break-word">
+                    {monthNames[data.latestEnergyReport.month - 1]} {data.latestEnergyReport.year}
+                    {" · "}
+                    {data.latestEnergyReport.savingsKBTU >= 0 ? "+" : ""}
+                    {data.latestEnergyReport.savingsKBTU.toLocaleString()} kBTU
+                  </p>
+                </div>
+              </div>
+              {(data.latestEnergyReport.pdfUrl || (data.latestEnergyReport as { id?: string }).id) && (
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={async () => {
                       const report = data.latestEnergyReport;
                       if (!report) return;
                       const reportId = (report as { id?: string }).id;
-                      if (!reportId) return;
-                      try {
-                        const token = localStorage.getItem("token");
-                        if (!token) return;
-                        const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
-                          headers: { Authorization: `Bearer ${token}` },
-                        });
-                        if (!tr.ok) return;
-                        const { token: linkToken } = await tr.json();
-                        if (!linkToken) return;
-                        const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
-                        if (navigator.clipboard?.writeText) {
-                          await navigator.clipboard.writeText(url);
-                        } else {
-                          const ta = document.createElement("textarea");
-                          ta.value = url;
-                          ta.style.position = "fixed";
-                          ta.style.opacity = "0";
-                          document.body.appendChild(ta);
-                          ta.select();
-                          document.execCommand("copy");
-                          document.body.removeChild(ta);
-                        }
-                        setLinkCopied(true);
-                        setTimeout(() => setLinkCopied(false), 2500);
-                      } catch {
-                        // copy failed
+                      if (!reportId) {
+                        if (report.pdfUrl) window.open(report.pdfUrl, "_blank");
+                        return;
                       }
+                      const token = localStorage.getItem("token");
+                      if (!token) return;
+                      const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      if (!tr.ok) return;
+                      const { token: linkToken } = await tr.json();
+                      if (!linkToken) return;
+                      const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
+                      window.open(url, "_blank");
                     }}
-                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-700 min-w-[5.5rem]"
+                    className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
                   >
-                    {linkCopied ? "Copied" : "Copy link"}
+                    View Report
                   </button>
-                )}
-              </div>
-            )}
+                  {(data.latestEnergyReport as { id?: string }).id && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const report = data.latestEnergyReport;
+                        if (!report) return;
+                        const reportId = (report as { id?: string }).id;
+                        if (!reportId) return;
+                        try {
+                          const token = localStorage.getItem("token");
+                          if (!token) return;
+                          const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
+                            headers: { Authorization: `Bearer ${token}` },
+                          });
+                          if (!tr.ok) return;
+                          const { token: linkToken } = await tr.json();
+                          if (!linkToken) return;
+                          const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
+                          if (navigator.clipboard?.writeText) {
+                            await navigator.clipboard.writeText(url);
+                          } else {
+                            const ta = document.createElement("textarea");
+                            ta.value = url;
+                            ta.style.position = "fixed";
+                            ta.style.opacity = "0";
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand("copy");
+                            document.body.removeChild(ta);
+                          }
+                          setLinkCopied(true);
+                          setTimeout(() => setLinkCopied(false), 2500);
+                        } catch {
+                          // copy failed
+                        }
+                      }}
+                      className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 cursor-pointer"
+                    >
+                      {linkCopied ? "Copied" : "Copy link"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-3">Latest Energy Report</h2>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <p className="text-sm text-gray-700">No energy report yet for this building.</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Recent Messages */}
       <div className="bg-white shadow rounded-lg">
@@ -354,64 +353,108 @@ export default function BuildingDashboard() {
           <h2 className="text-lg font-medium text-gray-900 mb-4">
             Recent Messages
           </h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Sent At
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                    Upload
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {data.messages.map((message) => (
-                  <tr key={message.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {message.messageType.replace("_", " ")}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                      {new Date(message.sentAt).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          message.delivered
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {message.deliveryStatus || (message.delivered ? "Delivered" : "Failed")}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {message.hasUpload ? (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                          ✓ Uploaded
-                        </span>
-                      ) : (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                          Pending
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {(() => {
+            const messagesTotal = data.messages.length;
+            const showMessagesPagination = messagesTotal > messagesLimit;
+            const totalPages = Math.max(1, Math.ceil(messagesTotal / messagesLimit));
+            const safePage = Math.min(messagesPage, totalPages);
+            const paginatedMessages = data.messages.slice(
+              (safePage - 1) * messagesLimit,
+              safePage * messagesLimit,
+            );
+            return (
+              <>
+                {showMessagesPagination && (
+                  <PaginationBar
+                    page={safePage}
+                    limit={messagesLimit}
+                    total={messagesTotal}
+                    onPageChange={setMessagesPage}
+                    onLimitChange={(l) => {
+                      setMessagesLimit(l);
+                      setMessagesPage(1);
+                    }}
+                    variant="compact"
+                    itemLabel="messages"
+                    part="top"
+                  />
+                )}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                          Type
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                          Sent At
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                          Upload
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {paginatedMessages.map((message) => (
+                        <tr key={message.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {message.messageType.replace("_", " ")}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                            {new Date(message.sentAt).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                message.delivered
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {message.deliveryStatus || (message.delivered ? "Delivered" : "Failed")}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {message.hasUpload ? (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                ✓ Uploaded
+                              </span>
+                            ) : (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {showMessagesPagination && (
+                  <PaginationBar
+                    page={safePage}
+                    limit={messagesLimit}
+                    total={messagesTotal}
+                    onPageChange={setMessagesPage}
+                    onLimitChange={(l) => {
+                      setMessagesLimit(l);
+                      setMessagesPage(1);
+                    }}
+                    variant="compact"
+                    itemLabel="messages"
+                    part="bottom"
+                  />
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
-      {/* Recent Uploads */}
+      {/* Recent Uploads — below Messages */}
       {data.recentUploads.length > 0 && (
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
@@ -432,24 +475,15 @@ export default function BuildingDashboard() {
                       {new Date(upload.uploadedAt).toLocaleString()}
                     </p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        upload.isCompliant
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {upload.isCompliant ? "Compliant" : "Late"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleViewUpload(upload.id)}
-                      className="inline-flex items-center px-2.5 py-1 border border-gray-300 rounded text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
-                    >
-                      View
-                    </button>
-                  </div>
+                  <span
+                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      upload.isCompliant
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {upload.isCompliant ? "Compliant" : "Late"}
+                  </span>
                 </div>
               ))}
             </div>
@@ -457,21 +491,11 @@ export default function BuildingDashboard() {
         </div>
       )}
 
-      {/* View-Only Notice */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex">
-          <div className="shrink-0">
-            <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <p className="text-sm text-blue-700">
-              <strong>View-Only Access:</strong> This portal provides read-only access to your building's data. 
-              To make changes, please contact your administrator.
-            </p>
-          </div>
-        </div>
+      {/* View-Only Notice — footer */}
+      <div className="pt-4 mt-2 border-t border-gray-200">
+        <p className="text-xs text-gray-500 text-center">
+          View-only access. This portal provides read-only access to your building&apos;s data. To make changes, please contact your administrator.
+        </p>
       </div>
     </div>
   );

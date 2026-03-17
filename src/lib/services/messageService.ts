@@ -1,8 +1,8 @@
-import { db, sql, toRows } from '@/lib/db/client';
-import { sendSMS } from './smsService';
-import { sendEmail } from './emailService';
-import { templateService, TemplateVariables } from './templateService';
-import crypto from 'crypto';
+import { db, sql, toRows } from "@/lib/db/client";
+import { sendSMS } from "./smsService";
+import { sendEmail } from "./emailService";
+import { templateService, TemplateVariables } from "./templateService";
+import crypto from "crypto";
 
 /** Queue item: userId = BUILDING user (users table). recipientId kept for backward compat when sending old messages. */
 export interface MessageQueueItem {
@@ -10,22 +10,25 @@ export interface MessageQueueItem {
   buildingId: string;
   userId?: string;
   recipientId?: string;
-  messageType: 'alert' | 'daily_summary' | 'warning';
+  messageType: "alert" | "daily_summary" | "warning";
   content: string;
   uploadToken?: string;
 }
 
 export interface MessageResult {
   messageId: string;
-  channel: 'email' | 'sms';
+  channel: "email" | "sms";
   success: boolean;
   error?: string;
 }
 
 export class MessageService {
-  async generateUploadToken(messageId: string, buildingId: string): Promise<string> {
+  async generateUploadToken(
+    messageId: string,
+    buildingId: string,
+  ): Promise<string> {
     const payload = `${messageId}:${buildingId}:${Date.now()}`;
-    const token = crypto.createHash('sha256').update(payload).digest('hex');
+    const token = crypto.createHash("sha256").update(payload).digest("hex");
     return token.substring(0, 32);
   }
 
@@ -38,15 +41,20 @@ export class MessageService {
         const users = await db.getBuildingUsers(item.buildingId);
         const target = users.find((u) => u.id === item.userId);
         if (!target || !target.is_active) continue;
-        const channels: ('email' | 'sms')[] = [];
-        if (target.preference === 'email' || target.preference === 'both') if (target.email) channels.push('email');
-        if (target.preference === 'sms' || target.preference === 'both') if (target.phone) channels.push('sms');
+        const channels: ("email" | "sms")[] = [];
+        if (target.preference === "email" || target.preference === "both")
+          if (target.email) channels.push("email");
+        if (target.preference === "sms" || target.preference === "both")
+          if (target.phone) channels.push("sms");
         for (const channel of channels) {
           const messageId = crypto.randomUUID();
           const uploadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`;
-          const needsUploadLink = item.messageType !== 'warning';
+          const needsUploadLink = item.messageType !== "warning";
           let content = item.content;
-          if (needsUploadLink) content = content.includes('__UPLOAD_URL__') ? content.replace('__UPLOAD_URL__', uploadUrl) : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
+          if (needsUploadLink)
+            content = content.includes("__UPLOAD_URL__")
+              ? content.replace("__UPLOAD_URL__", uploadUrl)
+              : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
           await sql`
             INSERT INTO messages (id, alert_log_id, building_id, user_id, message_type, channel, content, delivered, created_at)
             VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.userId}, ${item.messageType}, ${channel}, ${content}, false, NOW())
@@ -57,15 +65,20 @@ export class MessageService {
         const recipients = await db.getRecipients(item.buildingId);
         const target = recipients.find((r) => r.id === item.recipientId);
         if (!target || !target.is_active) continue;
-        const channels: ('email' | 'sms')[] = [];
-        if (target.preference === 'email' || target.preference === 'both') if (target.email) channels.push('email');
-        if (target.preference === 'sms' || target.preference === 'both') if (target.phone) channels.push('sms');
+        const channels: ("email" | "sms")[] = [];
+        if (target.preference === "email" || target.preference === "both")
+          if (target.email) channels.push("email");
+        if (target.preference === "sms" || target.preference === "both")
+          if (target.phone) channels.push("sms");
         for (const channel of channels) {
           const messageId = crypto.randomUUID();
           const uploadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`;
-          const needsUploadLink = item.messageType !== 'warning';
+          const needsUploadLink = item.messageType !== "warning";
           let content = item.content;
-          if (needsUploadLink) content = content.includes('__UPLOAD_URL__') ? content.replace('__UPLOAD_URL__', uploadUrl) : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
+          if (needsUploadLink)
+            content = content.includes("__UPLOAD_URL__")
+              ? content.replace("__UPLOAD_URL__", uploadUrl)
+              : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
           await sql`
             INSERT INTO messages (id, alert_log_id, building_id, recipient_id, message_type, channel, content, delivered, created_at)
             VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.recipientId}, ${item.messageType}, ${channel}, ${content}, false, NOW())
@@ -98,20 +111,22 @@ export class MessageService {
     for (const msg of messages) {
       try {
         let success = false;
-        let deliveryStatus = 'pending';
+        let deliveryStatus = "pending";
         let error: string | undefined;
 
         let email: string | null = null;
         let phone: string | null = null;
         if (msg.user_id) {
-          const userResult = await sql`SELECT * FROM users WHERE id = ${msg.user_id}`;
+          const userResult =
+            await sql`SELECT * FROM users WHERE id = ${msg.user_id}`;
           const u = toRows(userResult)[0];
           if (u) {
             email = u.email;
             phone = u.phone;
           }
         } else if (msg.recipient_id) {
-          const recipientResult = await sql`SELECT * FROM recipients WHERE id = ${msg.recipient_id}`;
+          const recipientResult =
+            await sql`SELECT * FROM recipients WHERE id = ${msg.recipient_id}`;
           const r = toRows(recipientResult)[0];
           if (r) {
             email = r.email;
@@ -119,40 +134,56 @@ export class MessageService {
           }
         }
 
-        if (msg.channel === 'sms' && phone) {
+        if (msg.channel === "sms" && phone) {
           // Twilio trial (error 30044) limits SMS length; keep under 160 chars. Prefer including upload URL.
           const maxSmsLen = 160;
           const urlMatch = msg.content.match(/https?:\/\/[^\s]+/);
-          const uploadUrl = urlMatch ? urlMatch[0].replace(/[.)]\s*$/, '') : '';
+          const uploadUrl = urlMatch ? urlMatch[0].replace(/[.)]\s*$/, "") : "";
           let smsBody: string;
-          if (uploadUrl && (msg.message_type === 'daily_summary' || msg.message_type === 'alert')) {
+          if (
+            uploadUrl &&
+            (msg.message_type === "daily_summary" ||
+              msg.message_type === "alert")
+          ) {
             const withPrefix = `Upload: ${uploadUrl}`;
-            smsBody = withPrefix.length <= maxSmsLen ? withPrefix : (uploadUrl.length <= maxSmsLen ? uploadUrl : 'Check email for upload link.');
+            smsBody =
+              withPrefix.length <= maxSmsLen
+                ? withPrefix
+                : uploadUrl.length <= maxSmsLen
+                  ? uploadUrl
+                  : "Check email for upload link.";
           } else {
-            smsBody = msg.content.length <= maxSmsLen ? msg.content : msg.content.slice(0, maxSmsLen - 3) + '…';
+            smsBody =
+              msg.content.length <= maxSmsLen
+                ? msg.content
+                : msg.content.slice(0, maxSmsLen - 3) + "…";
           }
           const smsResult = await sendSMS(phone, smsBody);
           success = smsResult.success;
-          deliveryStatus = success ? 'delivered' : (smsResult.error ? `failed: ${smsResult.error}`.slice(0, 50) : 'failed');
+          deliveryStatus = success
+            ? "delivered"
+            : smsResult.error
+              ? `failed: ${smsResult.error}`.slice(0, 50)
+              : "failed";
           error = smsResult.error;
           if (!success && smsResult.error) {
             console.error(`SMS failed to ${phone}:`, smsResult.error);
           }
         }
-        if (msg.channel === 'email' && email) {
+        if (msg.channel === "email" && email) {
           const subject =
-            msg.message_type === 'alert'
-              ? 'Temperature Alert - Action Required'
-              : msg.message_type === 'warning'
-                ? 'Compliance Warning'
-                : 'Daily Temperature Summary';
+            msg.message_type === "alert"
+              ? "Temperature Alert - Action Required"
+              : msg.message_type === "warning"
+                ? "Compliance Warning"
+                : "Daily Temperature Summary";
           const emailResult = await sendEmail({
             to: email,
             subject,
             text: msg.content,
           });
           success = emailResult.success;
-          deliveryStatus = success ? 'delivered' : 'failed';
+          deliveryStatus = success ? "delivered" : "failed";
           error = emailResult.error;
         }
 
@@ -170,7 +201,7 @@ export class MessageService {
       } catch (error: any) {
         console.error(`Error processing message ${msg.id}:`, error);
         await sql`
-          UPDATE messages SET delivery_status = ${'error'} WHERE id = ${msg.id}
+          UPDATE messages SET delivery_status = ${"error"} WHERE id = ${msg.id}
         `;
         failed++;
       }
@@ -183,7 +214,10 @@ export class MessageService {
     };
   }
 
-  async createMessagesFromAlert(alertLogId: string, cityId: string): Promise<string[]> {
+  async createMessagesFromAlert(
+    alertLogId: string,
+    cityId: string,
+  ): Promise<string[]> {
     const alertLogResult = await sql`
       SELECT * FROM alert_logs WHERE id = ${alertLogId}
     `;
@@ -192,7 +226,9 @@ export class MessageService {
 
     const alert = alertLogRows[0];
     const buildings = await db.getBuildings(cityId);
-    const activeBuildings = buildings.filter(b => b.is_active && !b.is_paused);
+    const activeBuildings = buildings.filter(
+      (b) => b.is_active && !b.is_paused,
+    );
 
     const messageItems: MessageQueueItem[] = [];
 
@@ -200,11 +236,14 @@ export class MessageService {
       const buildingUsers = await db.getBuildingUsers(building.id);
       const buildingRecipients = await db.getRecipients(building.id);
 
-      const messageType = alert.alert_type === 'sudden_fluctuation' ? 'alert' : 'daily_summary';
+      const messageType =
+        alert.alert_type === "sudden_fluctuation" ? "alert" : "daily_summary";
       const tempData = alert.temperature_data;
       const city = await db.getCityById(cityId);
       let template = await templateService.getTemplate(cityId, messageType);
-      let templateContent = template?.content ?? await templateService.getDefaultTemplate(messageType);
+      let templateContent =
+        template?.content ??
+        (await templateService.getDefaultTemplate(messageType));
       const variables: TemplateVariables = {
         temperatureChange: tempData.change || tempData.temperatureChange,
         timeWindow: tempData.timeWindow,
@@ -213,19 +252,34 @@ export class MessageService {
         averageTemp: tempData.averageTemp,
         minTemp: tempData.minTemp,
         maxTemp: tempData.maxTemp,
-        cityName: city?.name || '',
+        cityName: city?.name || "",
         buildingName: building.name,
-        uploadUrl: '__UPLOAD_URL__',
+        uploadUrl: "__UPLOAD_URL__",
       };
-      const content = await templateService.renderTemplate(templateContent, variables);
+      const content = await templateService.renderTemplate(
+        templateContent,
+        variables,
+      );
 
       for (const u of buildingUsers) {
         if (!u.is_active) continue;
-        messageItems.push({ alertLogId, buildingId: building.id, userId: u.id, messageType, content });
+        messageItems.push({
+          alertLogId,
+          buildingId: building.id,
+          userId: u.id,
+          messageType,
+          content,
+        });
       }
       for (const r of buildingRecipients) {
         if (!r.is_active) continue;
-        messageItems.push({ alertLogId, buildingId: building.id, recipientId: r.id, messageType, content });
+        messageItems.push({
+          alertLogId,
+          buildingId: building.id,
+          recipientId: r.id,
+          messageType,
+          content,
+        });
       }
     }
 

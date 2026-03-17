@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { IconDelete, IconEdit, IconPause, IconResume, IconView } from "@/components/admin/ActionIcons";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 interface Building {
   id: string;
@@ -30,6 +32,8 @@ export default function BuildingsPage() {
   });
   const [createLoading, setCreateLoading] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -190,20 +194,26 @@ export default function BuildingsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this building? This will also remove associated recipients and alert logs.")) return;
+  const handleDeleteClick = (id: string) => {
+    setDeleteTargetId(id);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteTargetId) return;
     try {
+      setDeleteLoading(true);
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/buildings/${id}`, {
+      const response = await fetch(`/api/buildings/${deleteTargetId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!response.ok) throw new Error("Failed to delete building");
+      setDeleteTargetId(null);
       fetchData();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -267,9 +277,12 @@ export default function BuildingsPage() {
             {buildings.map((building) => (
               <tr key={building.id}>
                 <td className="px-6 py-4">
-                  <div className="text-sm font-medium text-gray-900">
+                  <Link
+                    href={`/admin/buildings/${building.id}`}
+                    className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline cursor-pointer"
+                  >
                     {building.name}
-                  </div>
+                  </Link>
                   <div className="text-sm text-gray-800">{building.address}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
@@ -298,31 +311,40 @@ export default function BuildingsPage() {
                     )}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <Link
-                    href={`/admin/buildings/${building.id}`}
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    View
-                  </Link>
-                  <button
-                    onClick={() => handleEdit(building)}
-                    className="text-indigo-600 hover:text-indigo-900"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handlePause(building.id, building.isPaused)}
-                    className="text-yellow-600 hover:text-yellow-900"
-                  >
-                    {building.isPaused ? "Resume" : "Pause"}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(building.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    Delete
-                  </button>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={`/admin/buildings/${building.id}`}
+                      className="p-1.5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50"
+                      title="View"
+                    >
+                      <IconView />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(building)}
+                      className="p-1.5 text-indigo-600 hover:text-indigo-900 rounded hover:bg-indigo-50"
+                      title="Edit"
+                    >
+                      <IconEdit />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePause(building.id, building.isPaused)}
+                      className="p-1.5 text-yellow-600 hover:text-yellow-900 rounded hover:bg-yellow-50"
+                      title={building.isPaused ? "Resume" : "Pause"}
+                    >
+                      {building.isPaused ? <IconResume /> : <IconPause />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteClick(building.id)}
+                      className="p-1.5 text-red-600 hover:text-red-900 rounded hover:bg-red-50"
+                      title="Delete"
+                    >
+                      <IconDelete />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -564,6 +586,18 @@ export default function BuildingsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={deleteTargetId !== null}
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete building"
+        message="Are you sure you want to delete this building? This will also remove associated recipients and alert logs."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+      />
     </div>
   );
 }

@@ -22,7 +22,19 @@ export async function GET(req: NextRequest) {
     }
 
     const days = parseInt(req.nextUrl.searchParams.get('days') || '30');
-    const limit = parseInt(req.nextUrl.searchParams.get('limit') || '10');
+    const pageParam = req.nextUrl.searchParams.get('page') || '1';
+    const page = Math.max(1, parseInt(pageParam, 10));
+    const limitParam = req.nextUrl.searchParams.get('limit') || '10';
+    const limit = parseInt(limitParam, 10) === 20 ? 20 : 10;
+    const offset = (page - 1) * limit;
+
+    const countResult = await sql`
+      SELECT COUNT(*) as total
+      FROM messages m
+      WHERE m.sent_at >= NOW() - (INTERVAL '1 day' * ${days})
+    `;
+    const total = parseInt(String(toRows(countResult)[0]?.total ?? 0), 10);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
 
     const result = await sql`
       SELECT m.id, m.message_type, m.sent_at, m.delivered, m.delivery_status,
@@ -32,6 +44,7 @@ export async function GET(req: NextRequest) {
       WHERE m.sent_at >= NOW() - (INTERVAL '1 day' * ${days})
       ORDER BY m.sent_at DESC
       LIMIT ${limit}
+      OFFSET ${offset}
     `;
     const rows = toRows(result);
 
@@ -44,6 +57,10 @@ export async function GET(req: NextRequest) {
         deliveryStatus: m.delivery_status,
         buildingName: m.building_name,
       })),
+      total,
+      page,
+      limit,
+      totalPages,
       days,
     });
   } catch (error) {

@@ -52,7 +52,7 @@ export default function BuildingLayout({
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    router.push("/building/login");
+    router.push("/");
   };
 
   if (loading) {

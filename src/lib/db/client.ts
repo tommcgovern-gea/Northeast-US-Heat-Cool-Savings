@@ -104,7 +104,10 @@ export const db = {
     return toRows(result)[0] as City;
   },
 
-  async updateCity(id: string, data: Partial<Omit<City, 'id' | 'created_at' | 'updated_at'>>): Promise<City | null> {
+  async updateCity(
+    id: string,
+    data: Partial<Omit<City, "id" | "created_at" | "updated_at">>,
+  ): Promise<City | null> {
     const city = await this.getCityById(id);
     if (!city) return null;
 
@@ -113,14 +116,14 @@ export const db = {
     let paramIndex = 1;
 
     const fieldMap: Record<string, string> = {
-      name: 'name',
-      state: 'state',
-      nws_office: 'nws_office',
-      nws_grid_x: 'nws_grid_x',
-      nws_grid_y: 'nws_grid_y',
-      alert_temp_delta: 'alert_temp_delta',
-      alert_window_hours: 'alert_window_hours',
-      is_active: 'is_active',
+      name: "name",
+      state: "state",
+      nws_office: "nws_office",
+      nws_grid_x: "nws_grid_x",
+      nws_grid_y: "nws_grid_y",
+      alert_temp_delta: "alert_temp_delta",
+      alert_window_hours: "alert_window_hours",
+      is_active: "is_active",
     };
 
     Object.entries(data).forEach(([key, value]) => {
@@ -136,14 +139,17 @@ export const db = {
     }
 
     values.push(id);
-    const query = `UPDATE cities SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
+    const query = `UPDATE cities SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
 
     const result = await (client as any)(query, values);
     const rows = toRows(result);
     return (rows[0] as City) ?? null;
   },
 
-  async getBuildings(cityId?: string, buildingId?: string): Promise<Building[]> {
+  async getBuildings(
+    cityId?: string,
+    buildingId?: string,
+  ): Promise<Building[]> {
     if (buildingId) {
       const result = await sql`
         SELECT * FROM buildings WHERE id = ${buildingId}
@@ -164,7 +170,9 @@ export const db = {
     return (toRows(result) ?? []) as Building[];
   },
 
-  async createBuilding(data: Omit<Building, 'id' | 'created_at' | 'updated_at'>): Promise<Building> {
+  async createBuilding(
+    data: Omit<Building, "id" | "created_at" | "updated_at">,
+  ): Promise<Building> {
     const result = await sql`
       INSERT INTO buildings (city_id, name, address, is_active, is_paused)
       VALUES (${data.city_id}, ${data.name}, ${data.address}, ${data.is_active}, ${data.is_paused})
@@ -173,7 +181,10 @@ export const db = {
     return toRows(result)[0] as Building;
   },
 
-  async getRecipients(buildingId: string, includeInactive: boolean = false): Promise<Recipient[]> {
+  async getRecipients(
+    buildingId: string,
+    includeInactive: boolean = false,
+  ): Promise<Recipient[]> {
     if (includeInactive) {
       const result = await sql`
         SELECT * FROM recipients WHERE building_id = ${buildingId}
@@ -189,7 +200,19 @@ export const db = {
   },
 
   /** Building users (role BUILDING) with this building in building_ids. Returns recipient-like shape. */
-  async getBuildingUsers(buildingId: string, includeInactive: boolean = false): Promise<Array<{ id: string; name: string | null; email: string | null; phone: string | null; preference: string; is_active: boolean }>> {
+  async getBuildingUsers(
+    buildingId: string,
+    includeInactive: boolean = false,
+  ): Promise<
+    Array<{
+      id: string;
+      name: string | null;
+      email: string | null;
+      phone: string | null;
+      preference: string;
+      is_active: boolean;
+    }>
+  > {
     const result = await sql`
       SELECT id, name, email, phone, COALESCE(preference, 'email') AS preference, COALESCE(is_active, true) AS is_active
       FROM users
@@ -205,7 +228,7 @@ export const db = {
       name: r.name,
       email: r.email,
       phone: r.phone,
-      preference: r.preference || 'email',
+      preference: r.preference || "email",
       is_active: !!r.is_active,
     }));
   },
@@ -218,7 +241,9 @@ export const db = {
     return (rows[0] as Recipient) ?? null;
   },
 
-  async createRecipient(data: Omit<Recipient, 'id' | 'created_at' | 'updated_at'>): Promise<Recipient> {
+  async createRecipient(
+    data: Omit<Recipient, "id" | "created_at" | "updated_at">,
+  ): Promise<Recipient> {
     const result = await sql`
       INSERT INTO recipients (building_id, name, email, phone, preference, is_active)
       VALUES (${data.building_id}, ${data.name}, ${data.email}, ${data.phone}, ${data.preference}, ${data.is_active})
@@ -227,7 +252,12 @@ export const db = {
     return toRows(result)[0] as Recipient;
   },
 
-  async updateRecipient(id: string, data: Partial<Omit<Recipient, 'id' | 'created_at' | 'updated_at' | 'building_id'>>): Promise<Recipient | null> {
+  async updateRecipient(
+    id: string,
+    data: Partial<
+      Omit<Recipient, "id" | "created_at" | "updated_at" | "building_id">
+    >,
+  ): Promise<Recipient | null> {
     const recipient = await this.getRecipientById(id);
     if (!recipient) return null;
 
@@ -236,11 +266,11 @@ export const db = {
     let paramIndex = 1;
 
     const fieldMap: Record<string, string> = {
-      name: 'name',
-      email: 'email',
-      phone: 'phone',
-      preference: 'preference',
-      is_active: 'is_active',
+      name: "name",
+      email: "email",
+      phone: "phone",
+      preference: "preference",
+      is_active: "is_active",
     };
 
     Object.entries(data).forEach(([key, value]) => {
@@ -256,7 +286,7 @@ export const db = {
     }
 
     values.push(id);
-    const query = `UPDATE recipients SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
+    const query = `UPDATE recipients SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
 
     const result = await (client as any)(query, values);
     const rows = toRows(result);
@@ -270,7 +300,9 @@ export const db = {
     return toRows(result).length > 0;
   },
 
-  async createAlertLog(data: Omit<AlertLog, 'id' | 'triggered_at'>): Promise<AlertLog> {
+  async createAlertLog(
+    data: Omit<AlertLog, "id" | "triggered_at">,
+  ): Promise<AlertLog> {
     const result = await sql`
       INSERT INTO alert_logs (city_id, alert_type, temperature_data, threshold_used, processed)
       VALUES (
@@ -298,7 +330,9 @@ export const db = {
     `;
   },
 
-  async saveTemperatureSnapshot(data: Omit<TemperatureSnapshot, 'id' | 'created_at'>): Promise<TemperatureSnapshot> {
+  async saveTemperatureSnapshot(
+    data: Omit<TemperatureSnapshot, "id" | "created_at">,
+  ): Promise<TemperatureSnapshot> {
     const result = await sql`
       INSERT INTO temperature_snapshots (city_id, recorded_at, temperature_f, forecast_data)
       VALUES (
@@ -312,7 +346,10 @@ export const db = {
     return toRows(result)[0] as TemperatureSnapshot;
   },
 
-  async getRecentTemperatureSnapshots(cityId: string, hours: number = 24): Promise<TemperatureSnapshot[]> {
+  async getRecentTemperatureSnapshots(
+    cityId: string,
+    hours: number = 24,
+  ): Promise<TemperatureSnapshot[]> {
     const result = await sql`
       SELECT * FROM temperature_snapshots
       WHERE city_id = ${cityId}
@@ -333,14 +370,17 @@ export const db = {
   async createUser(data: {
     email: string;
     password_hash: string;
-    role: 'ADMIN' | 'STAFF' | 'BUILDING';
+    role: "ADMIN" | "STAFF" | "BUILDING";
     building_ids?: string[] | null;
     name?: string | null;
     phone?: string | null;
-    preference?: 'email' | 'sms' | 'both';
+    preference?: "email" | "sms" | "both";
     is_active?: boolean;
   }): Promise<any> {
-    const ids = (data.building_ids && data.building_ids.length > 0) ? data.building_ids : [];
+    const ids =
+      data.building_ids && data.building_ids.length > 0
+        ? data.building_ids
+        : [];
     const result = await sql`
       INSERT INTO users (email, password_hash, role, building_ids, name, phone, preference, is_active)
       VALUES (
@@ -350,7 +390,7 @@ export const db = {
         ${ids},
         ${data.name ?? null},
         ${data.phone ?? null},
-        ${data.preference ?? 'email'},
+        ${data.preference ?? "email"},
         ${data.is_active ?? true}
       )
       RETURNING *
@@ -365,7 +405,16 @@ export const db = {
   },
 
   /** All BUILDING users for admin “add existing user” list. */
-  async getBuildingRoleUsers(): Promise<Array<{ id: string; email: string; name: string | null; phone: string | null; preference: string; building_ids: string[] }>> {
+  async getBuildingRoleUsers(): Promise<
+    Array<{
+      id: string;
+      email: string;
+      name: string | null;
+      phone: string | null;
+      preference: string;
+      building_ids: string[];
+    }>
+  > {
     const result = await sql`
       SELECT id, email, name, phone, preference, building_ids
       FROM users
@@ -378,13 +427,24 @@ export const db = {
       email: r.email,
       name: r.name ?? null,
       phone: r.phone ?? null,
-      preference: r.preference ?? 'email',
-      building_ids: Array.isArray(r.building_ids) ? r.building_ids.filter(Boolean) : [],
+      preference: r.preference ?? "email",
+      building_ids: Array.isArray(r.building_ids)
+        ? r.building_ids.filter(Boolean)
+        : [],
     }));
   },
 
   /** Staff users for admin “Staff Signup Details” (id, email, name, signup date). */
-  async getStaffUsers(): Promise<Array<{ id: string; email: string; name: string | null; phone: string | null; is_active: boolean; created_at: string }>> {
+  async getStaffUsers(): Promise<
+    Array<{
+      id: string;
+      email: string;
+      name: string | null;
+      phone: string | null;
+      is_active: boolean;
+      created_at: string;
+    }>
+  > {
     const result = await sql`
       SELECT id, email, name, phone, is_active, created_at
       FROM users
@@ -402,18 +462,38 @@ export const db = {
     }));
   },
 
-  async updateUser(id: string, data: { name?: string | null; email?: string; phone?: string | null; preference?: string; is_active?: boolean; building_ids?: string[] }): Promise<any | null> {
+  async updateUser(
+    id: string,
+    data: {
+      name?: string | null;
+      email?: string;
+      phone?: string | null;
+      preference?: string;
+      is_active?: boolean;
+      building_ids?: string[];
+    },
+  ): Promise<any | null> {
     const user = await this.getUserById(id);
     if (!user) return null;
 
     const name = data.name !== undefined ? data.name : user.name;
     const email = data.email !== undefined ? data.email : user.email;
     const phone = data.phone !== undefined ? data.phone : user.phone;
-    const preference = data.preference !== undefined ? data.preference : (user.preference || 'email');
-    const is_active = data.is_active !== undefined ? data.is_active : (user.is_active !== false);
-    const building_ids = data.building_ids !== undefined ? data.building_ids : ((user.building_ids || []) as string[]).filter(Boolean);
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const validIds = building_ids.filter((id) => typeof id === "string" && uuidRegex.test(id.trim()));
+    const preference =
+      data.preference !== undefined
+        ? data.preference
+        : user.preference || "email";
+    const is_active =
+      data.is_active !== undefined ? data.is_active : user.is_active !== false;
+    const building_ids =
+      data.building_ids !== undefined
+        ? data.building_ids
+        : ((user.building_ids || []) as string[]).filter(Boolean);
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validIds = building_ids.filter(
+      (id) => typeof id === "string" && uuidRegex.test(id.trim()),
+    );
     const arrLiteral = validIds.length ? `{"${validIds.join('","')}"}` : "{}";
 
     const result = await sql`
@@ -429,9 +509,12 @@ export const db = {
   },
 
   /** Add building to a BUILDING user's building_ids; create user if not exists (for invite flow). */
-  async addBuildingToUser(userId: string, buildingId: string): Promise<any | null> {
+  async addBuildingToUser(
+    userId: string,
+    buildingId: string,
+  ): Promise<any | null> {
     const user = await this.getUserById(userId);
-    if (!user || user.role !== 'BUILDING') return null;
+    if (!user || user.role !== "BUILDING") return null;
     const current = (user.building_ids || []) as string[];
     if (current.includes(buildingId)) return user;
     const next = [...current, buildingId];
@@ -439,9 +522,12 @@ export const db = {
   },
 
   /** Remove building from BUILDING user's building_ids; delete user if no buildings left. */
-  async removeBuildingFromUser(userId: string, buildingId: string): Promise<any | null> {
+  async removeBuildingFromUser(
+    userId: string,
+    buildingId: string,
+  ): Promise<any | null> {
     const user = await this.getUserById(userId);
-    if (!user || user.role !== 'BUILDING') return null;
+    if (!user || user.role !== "BUILDING") return null;
     const current = ((user.building_ids || []) as string[]).filter(Boolean);
     const next = current.filter((id) => id !== buildingId);
     if (next.length === 0) {

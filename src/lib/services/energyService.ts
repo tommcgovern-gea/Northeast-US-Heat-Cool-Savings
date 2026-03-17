@@ -132,16 +132,12 @@ export class EnergyService {
     buildingId: string,
     month: number
   ): Promise<{ heating: EnergyBaseline | null; cooling: EnergyBaseline | null }> {
-    const threeYearsAgo = new Date();
-    threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
-
     const utilityData = await sql`
       SELECT uc.*, b.city_id
       FROM utility_consumption uc
       JOIN buildings b ON b.id = uc.building_id
       WHERE uc.building_id = ${buildingId}
         AND uc.month = ${month}
-        AND (uc.year * 100 + uc.month) >= ${threeYearsAgo.getFullYear() * 100 + threeYearsAgo.getMonth() + 1}
       ORDER BY uc.year DESC
     `;
 
@@ -155,7 +151,6 @@ export class EnergyService {
       SELECT * FROM degree_days
       WHERE city_id = ${cityId}
         AND month = ${month}
-        AND (year * 100 + month) >= ${threeYearsAgo.getFullYear() * 100 + threeYearsAgo.getMonth() + 1}
       ORDER BY year DESC
     `;
 
@@ -351,6 +346,27 @@ export class EnergyService {
     return toRows(result) as UtilityConsumption[];
   }
 
+  async getBuildingUtilityHistoryPaginated(
+    buildingId: string,
+    page: number,
+    limit: number
+  ): Promise<{ items: UtilityConsumption[]; total: number }> {
+    const offset = (page - 1) * limit;
+    const countResult = await sql`
+      SELECT COUNT(*) as total FROM utility_consumption
+      WHERE building_id = ${buildingId}
+    `;
+    const total = parseInt(String(toRows(countResult)[0]?.total ?? 0), 10);
+    const result = await sql`
+      SELECT * FROM utility_consumption
+      WHERE building_id = ${buildingId}
+      ORDER BY year DESC, month DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+    const items = toRows(result) as UtilityConsumption[];
+    return { items, total };
+  }
+
   async getCityDegreeDaysHistory(
     cityId: string,
     limit: number = 36
@@ -363,6 +379,27 @@ export class EnergyService {
     `;
 
     return toRows(result) as DegreeDays[];
+  }
+
+  async getCityDegreeDaysHistoryPaginated(
+    cityId: string,
+    page: number,
+    limit: number
+  ): Promise<{ items: DegreeDays[]; total: number }> {
+    const offset = (page - 1) * limit;
+    const countResult = await sql`
+      SELECT COUNT(*) as total FROM degree_days
+      WHERE city_id = ${cityId}
+    `;
+    const total = parseInt(String(toRows(countResult)[0]?.total ?? 0), 10);
+    const result = await sql`
+      SELECT * FROM degree_days
+      WHERE city_id = ${cityId}
+      ORDER BY year DESC, month DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+    const items = toRows(result) as DegreeDays[];
+    return { items, total };
   }
 }
 

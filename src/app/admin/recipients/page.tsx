@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 interface Recipient {
   id: string;
@@ -47,6 +49,8 @@ export default function RecipientsPage() {
   const [existingUsers, setExistingUsers] = useState<Array<{ id: string; email: string; name: string | null; phone: string | null; preference: string; building_ids: string[] }>>([]);
   const [existingUsersLoading, setExistingUsersLoading] = useState(false);
   const [selectedExistingUserId, setSelectedExistingUserId] = useState<string>('');
+  const [deleteTarget, setDeleteTarget] = useState<Recipient | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchBuildings();
@@ -215,22 +219,28 @@ export default function RecipientsPage() {
     }
   };
 
-  const handleDelete = async (recipient: Recipient) => {
-    if (!confirm("Are you sure you want to delete this recipient?")) return;
+  const handleDeleteClick = (recipient: Recipient) => {
+    setDeleteTarget(recipient);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     try {
+      setDeleteLoading(true);
       const token = localStorage.getItem("token");
-      const url = new URL(`/api/recipients/${recipient.id}`, window.location.origin);
+      const url = new URL(`/api/recipients/${deleteTarget.id}`, window.location.origin);
       if (selectedBuilding) url.searchParams.set("buildingId", selectedBuilding);
       const response = await fetch(url.toString(), {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!response.ok) throw new Error("Failed to delete recipient");
+      setDeleteTarget(null);
       fetchRecipients();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -428,19 +438,25 @@ export default function RecipientsPage() {
                       {recipient.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <button
-                      onClick={() => handleEdit(recipient)}
-                      className="text-blue-700 hover:text-blue-900 font-semibold"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(recipient)}
-                      className="text-red-700 hover:text-red-900 font-semibold"
-                    >
-                      Delete
-                    </button>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(recipient)}
+                        className="p-1.5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50"
+                        title="Edit"
+                      >
+                        <IconEdit />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClick(recipient)}
+                        className="p-1.5 text-red-600 hover:text-red-900 rounded hover:bg-red-50"
+                        title="Delete"
+                      >
+                        <IconDelete />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -720,6 +736,18 @@ export default function RecipientsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete recipient"
+        message="Are you sure you want to delete this recipient?"
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+      />
     </div>
   );
 }

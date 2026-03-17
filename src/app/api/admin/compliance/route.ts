@@ -27,7 +27,23 @@ export async function GET(req: NextRequest) {
       } catch {
         // Tables may not exist
       }
-      
+
+      const pageParam = req.nextUrl.searchParams.get('page') || '1';
+      const page = Math.max(1, parseInt(pageParam, 10));
+      const limitParam = req.nextUrl.searchParams.get('limit') || '10';
+      const limit = Math.min(100, Math.max(1, parseInt(limitParam, 10)));
+      const offset = (page - 1) * limit;
+
+      const countResult = await sql`
+        SELECT COUNT(*) as total
+        FROM messages m
+        WHERE m.building_id = ${buildingId}
+          AND m.message_type IN ('alert', 'daily_summary')
+          AND m.sent_at >= NOW() - make_interval(days => ${days})
+          AND m.delivered = true
+      `;
+      const total = parseInt(String(toRows(countResult)[0]?.total ?? 0), 10);
+
       const messagesResult = await sql`
         SELECT m.*, COUNT(p.id) as upload_count
         FROM messages m
@@ -38,7 +54,8 @@ export async function GET(req: NextRequest) {
           AND m.delivered = true
         GROUP BY m.id
         ORDER BY m.sent_at DESC
-        LIMIT 50
+        LIMIT ${limit}
+        OFFSET ${offset}
       `;
 
       const messageRows = toRows(messagesResult);
@@ -54,28 +71,25 @@ export async function GET(req: NextRequest) {
           deliveryStatus: msg.delivery_status,
           hasUpload: parseInt(msg.upload_count) > 0,
         })),
+        total,
+        page,
+        limit,
       });
     }
 
     const buildings = await db.getBuildings();
-    const rateMap = await complianceService.getBuildingComplianceRatesBatch(
-      buildings.map((b) => b.id),
-      days
-    );
+    const [rateMap, overallRate] = await Promise.all([
+      complianceService.getBuildingComplianceRatesBatch(buildings.map((b) => b.id), days),
+      complianceService.getGlobalComplianceRate(days),
+    ]);
     const complianceData = buildings.map((building) => ({
       buildingId: building.id,
       buildingName: building.name,
       complianceRate: rateMap.get(building.id) ?? null,
     }));
 
-    const buildingsWithData = complianceData.filter((b) => b.complianceRate != null);
-    const overallRate =
-      buildingsWithData.length > 0
-        ? buildingsWithData.reduce((sum, b) => sum + (b.complianceRate ?? 0), 0) / buildingsWithData.length
-        : null;
-
     return NextResponse.json({
-      overallComplianceRate: overallRate != null ? Math.round(overallRate * 10) / 10 : null,
+      overallComplianceRate: overallRate,
       buildings: complianceData,
       days,
     });
