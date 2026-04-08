@@ -5,7 +5,7 @@ import { sql, toRows } from "@/lib/db/client";
 /** Serves an uploaded file by redirecting to its blob URL. Uses short-lived ?t= link token. */
 export async function GET(
   req: NextRequest,
-  props: { params: Promise<{ uploadId: string }> }
+  props: { params: Promise<{ uploadId: string }> },
 ) {
   try {
     const { uploadId } = await props.params;
@@ -29,7 +29,10 @@ export async function GET(
     const upload = toRows(rows)[0];
 
     if (!upload?.file_url) {
-      return NextResponse.json({ message: "Upload not found" }, { status: 404 });
+      return NextResponse.json(
+        { message: "Upload not found" },
+        { status: 404 },
+      );
     }
 
     // Just redirect the browser to the stored blob URL

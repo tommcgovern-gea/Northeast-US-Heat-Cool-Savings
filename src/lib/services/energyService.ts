@@ -401,6 +401,57 @@ export class EnergyService {
     const items = toRows(result) as DegreeDays[];
     return { items, total };
   }
+
+  /** Months where this building has utility rows and its city has matching degree days (required for reports). */
+  async getReportEligiblePeriods(
+    buildingId: string,
+    cityId: string | null | undefined
+  ): Promise<Array<{ month: number; year: number }>> {
+    if (!cityId) return [];
+    const result = await sql`
+      SELECT uc.month, uc.year
+      FROM utility_consumption uc
+      INNER JOIN buildings b ON b.id = uc.building_id AND b.city_id = ${cityId}
+      INNER JOIN degree_days dd
+        ON dd.city_id = b.city_id
+        AND dd.month = uc.month
+        AND dd.year = uc.year
+      WHERE uc.building_id = ${buildingId}
+      ORDER BY uc.year DESC, uc.month DESC
+      LIMIT 200
+    `;
+    return toRows(result).map((r: { month: number; year: number }) => ({
+      month: Number(r.month),
+      year: Number(r.year),
+    }));
+  }
+
+  async getLastUtilityUploadAt(buildingId: string): Promise<string | null> {
+    const result = await sql`
+      SELECT GREATEST(
+        MAX(created_at),
+        MAX(updated_at)
+      ) AS last_at
+      FROM utility_consumption
+      WHERE building_id = ${buildingId}
+    `;
+    const row = toRows(result)[0] as { last_at: string | null } | undefined;
+    return row?.last_at ?? null;
+  }
+
+  async getLastDegreeDayUploadAt(cityId: string | null | undefined): Promise<string | null> {
+    if (!cityId) return null;
+    const result = await sql`
+      SELECT GREATEST(
+        MAX(created_at),
+        MAX(updated_at)
+      ) AS last_at
+      FROM degree_days
+      WHERE city_id = ${cityId}
+    `;
+    const row = toRows(result)[0] as { last_at: string | null } | undefined;
+    return row?.last_at ?? null;
+  }
 }
 
 export const energyService = new EnergyService();
