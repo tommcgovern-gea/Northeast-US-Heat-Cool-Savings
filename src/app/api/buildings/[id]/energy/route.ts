@@ -76,13 +76,16 @@ export async function GET(
       await energyService.calculateBaseline(params.id, month);
     }
 
-    const [utilityPaginated, degreeDaysPaginated, baselinesResult, recentReportsResult] = await Promise.all([
+    const [utilityPaginated, degreeDaysPaginated, baselinesResult, recentReportsResult, reportEligiblePeriods, lastUtilityUploadAt, lastDegreeDayUploadAt] = await Promise.all([
       energyService.getBuildingUtilityHistoryPaginated(params.id, utilityPage, utilityLimit),
       cityId
         ? energyService.getCityDegreeDaysHistoryPaginated(cityId, degreeDaysPage, degreeDaysLimit)
         : Promise.resolve({ items: [], total: 0 }),
       sql`SELECT * FROM energy_baselines WHERE building_id = ${params.id} ORDER BY month`,
       sql`SELECT * FROM energy_reports WHERE building_id = ${params.id} ORDER BY year DESC, month DESC LIMIT 12`,
+      energyService.getReportEligiblePeriods(params.id, cityId),
+      energyService.getLastUtilityUploadAt(params.id),
+      energyService.getLastDegreeDayUploadAt(cityId),
     ]);
 
     const baselinesRows = toRows(baselinesResult);
@@ -90,6 +93,9 @@ export async function GET(
 
     return NextResponse.json({
       buildingId: params.id,
+      reportEligiblePeriods,
+      lastUtilityUploadAt,
+      lastDegreeDayUploadAt,
       degreeDays: degreeDaysPaginated.items.map((dd: any) => ({
         id: dd.id,
         month: dd.month,
