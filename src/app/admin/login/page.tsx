@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -106,6 +107,11 @@ export default function LoginPage() {
             >
               {loading ? "Signing in..." : "Sign in"}
             </button>
+          </div>
+          <div className="text-center">
+            <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
+              Forgot Password?
+            </Link>
           </div>
         </form>
       </div>

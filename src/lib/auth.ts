@@ -82,3 +82,24 @@ export function verifyUploadLinkToken(token: string): { uploadId: string } | nul
     return null;
   }
 }
+
+/** Short-lived token for password reset links. */
+export function signPasswordResetToken(userId: string, passwordHash: string): string {
+  return jwt.sign(
+    { userId, purpose: "password-reset", ph: passwordHash.slice(0, 12) },
+    JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+}
+
+export function verifyPasswordResetToken(token: string): { userId: string; ph: string } | null {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { userId?: string; purpose?: string; ph?: string };
+    if (payload?.purpose === "password-reset" && payload?.userId && payload?.ph) {
+      return { userId: payload.userId, ph: payload.ph };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
