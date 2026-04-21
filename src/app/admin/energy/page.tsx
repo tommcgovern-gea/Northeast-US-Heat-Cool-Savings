@@ -443,7 +443,7 @@ export default function EnergyPage() {
       const emailMsg = data.emailSent
         ? " Email sent successfully."
         : data.comparison?.totalKBTU !== undefined && reportFormData.emailTo
-        ? " Email could not be sent — check the email address and email service configuration."
+        ? ` Email could not be sent${data.emailError ? ` (${data.emailError})` : " — check the email address and email service configuration."}`
         : "";
       setSuccessMessage(`Report generated successfully.${emailMsg}`);
       fetchEnergyData();

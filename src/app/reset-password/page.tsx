@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const token = useMemo(() => searchParams.get("token") || "", [searchParams]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -44,6 +46,9 @@ export default function ResetPasswordPage() {
       setMessage(data.message || "Password reset successfully.");
       setPassword("");
       setConfirmPassword("");
+      setTimeout(() => {
+        router.push("/");
+      }, 1200);
     } catch (err: any) {
       setError(err.message || "Failed to reset password.");
     } finally {
