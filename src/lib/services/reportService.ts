@@ -312,7 +312,7 @@ export class ReportService {
     reportData: ReportData,
     pdfUrl: string,
     recipientEmail: string
-  ): Promise<boolean> {
+  ): Promise<{ success: boolean; error?: string }> {
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -341,14 +341,18 @@ View full report: ${pdfUrl}
       <p><a href="${pdfUrl}">View Full Report</a></p>
     `;
 
+    const normalizedRecipient = recipientEmail.trim().toLowerCase();
     const result = await sendEmail({
-      to: recipientEmail,
+      to: normalizedRecipient,
       subject,
       text,
       html,
     });
 
-    return result.success;
+    return {
+      success: result.success,
+      error: result.error,
+    };
   }
 }
 

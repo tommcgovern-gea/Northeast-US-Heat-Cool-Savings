@@ -275,7 +275,7 @@ export class EnergyService {
     const consumptionPerHDD = hdd > 0 ? totalKBTU / hdd : 0;
     const consumptionPerCDD = cdd > 0 ? totalKBTU / cdd : 0;
 
-    const heatingBaseline = await sql`
+    let heatingBaseline = await sql`
       SELECT * FROM energy_baselines
       WHERE building_id = ${buildingId}
         AND month = ${month}
@@ -283,7 +283,7 @@ export class EnergyService {
       LIMIT 1
     `;
 
-    const coolingBaseline = await sql`
+    let coolingBaseline = await sql`
       SELECT * FROM energy_baselines
       WHERE building_id = ${buildingId}
         AND month = ${month}
@@ -291,24 +291,45 @@ export class EnergyService {
       LIMIT 1
     `;
 
-    const heatingRows = toRows(heatingBaseline);
-    const coolingRows = toRows(coolingBaseline);
-    const baselineHDD = heatingRows.length > 0
-      ? Number(heatingRows[0].avg_consumption_per_degree_day)
-      : null;
-    const baselineCDD = coolingRows.length > 0
-      ? Number(coolingRows[0].avg_consumption_per_degree_day)
-      : null;
+    let heatingRows = toRows(heatingBaseline);
+    let coolingRows = toRows(coolingBaseline);
+
+    if (heatingRows.length === 0 && coolingRows.length === 0) {
+      await this.calculateBaseline(buildingId, month);
+      heatingBaseline = await sql`
+        SELECT * FROM energy_baselines
+        WHERE building_id = ${buildingId}
+          AND month = ${month}
+          AND baseline_type = 'heating'
+        LIMIT 1
+      `;
+      coolingBaseline = await sql`
+        SELECT * FROM energy_baselines
+        WHERE building_id = ${buildingId}
+          AND month = ${month}
+          AND baseline_type = 'cooling'
+        LIMIT 1
+      `;
+      heatingRows = toRows(heatingBaseline);
+      coolingRows = toRows(coolingBaseline);
+    }
+
+    const baselineHDD =
+      heatingRows.length > 0 ? Number(heatingRows[0].avg_consumption_per_degree_day) : null;
+    const baselineCDD =
+      coolingRows.length > 0 ? Number(coolingRows[0].avg_consumption_per_degree_day) : null;
 
     let savingsPercentage = 0;
     let savingsKBTU = 0;
 
+    let expectedConsumption = 0;
     if (baselineHDD && hdd > 0) {
-      const expectedConsumption = baselineHDD * hdd;
-      savingsKBTU = expectedConsumption - totalKBTU;
-      savingsPercentage = (savingsKBTU / expectedConsumption) * 100;
-    } else if (baselineCDD && cdd > 0) {
-      const expectedConsumption = baselineCDD * cdd;
+      expectedConsumption += baselineHDD * hdd;
+    }
+    if (baselineCDD && cdd > 0) {
+      expectedConsumption += baselineCDD * cdd;
+    }
+    if (expectedConsumption > 0) {
       savingsKBTU = expectedConsumption - totalKBTU;
       savingsPercentage = (savingsKBTU / expectedConsumption) * 100;
     }

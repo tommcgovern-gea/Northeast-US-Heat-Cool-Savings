@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
+import { IconDeactivate, IconEdit } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { Toast } from "@/components/Toast";
 
@@ -337,10 +337,10 @@ export default function CitiesPage() {
                     <button
                       type="button"
                       onClick={() => handleDeleteClick(city.id)}
-                      className="p-1.5 text-red-600 hover:text-red-900 rounded hover:bg-red-50"
-                      title="Delete"
+                      className="p-1.5 text-amber-600 hover:text-amber-900 rounded hover:bg-amber-50"
+                      title="Deactivate"
                     >
-                      <IconDelete />
+                      <IconDeactivate />
                     </button>
                   </div>
                 </td>

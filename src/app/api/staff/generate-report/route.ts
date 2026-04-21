@@ -38,13 +38,34 @@ export async function POST(req: NextRequest) {
     const reportId = await reportService.saveReport(buildingId, month, year, reportData, pdfUrl);
 
     let emailSent = false;
-    if (emailTo) {
-      emailSent = await reportService.sendReportEmail(reportData, pdfUrl, emailTo);
+    let emailError: string | undefined;
+    const normalizedEmail =
+      typeof emailTo === "string" && emailTo.trim().length > 0
+        ? emailTo.trim().toLowerCase()
+        : undefined;
+    const isValidEmail =
+      !normalizedEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+
+    if (!isValidEmail) {
+      return NextResponse.json(
+        { message: 'Invalid email address format' },
+        { status: 400 }
+      );
+    }
+
+    if (normalizedEmail) {
+      const emailResult = await reportService.sendReportEmail(
+        reportData,
+        pdfUrl,
+        normalizedEmail
+      );
+      emailSent = emailResult.success;
+      emailError = emailResult.error;
       
       if (emailSent) {
         await sql`
           UPDATE energy_reports
-          SET emailed_to = array_append(emailed_to, ${emailTo})
+          SET emailed_to = COALESCE(emailed_to, ARRAY[]::text[]) || ARRAY[${normalizedEmail}]
           WHERE id = ${reportId}
         `;
       }
@@ -58,6 +79,7 @@ export async function POST(req: NextRequest) {
       year,
       pdfUrl,
       emailSent,
+      emailError,
       comparison: reportData.comparison,
     });
   } catch (error: any) {
