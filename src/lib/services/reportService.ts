@@ -97,6 +97,7 @@ export class ReportService {
             const blob = await put(fileName, pdfBuffer, {
               access: 'private',
               contentType: 'application/pdf',
+              allowOverwrite: true,
             });
 
             resolve(blob.url);
