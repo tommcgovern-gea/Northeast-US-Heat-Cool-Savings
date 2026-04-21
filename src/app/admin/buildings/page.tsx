@@ -18,6 +18,9 @@ interface Building {
   complianceRate: number | null;
 }
 
+const normalizeBuildingText = (value: string): string =>
+  value.trim().replace(/\s+/g, " ").toLowerCase();
+
 export default function BuildingsPage() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [cities, setCities] = useState<any[]>([]);
@@ -36,6 +39,8 @@ export default function BuildingsPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [createFormError, setCreateFormError] = useState("");
+  const [editFormError, setEditFormError] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -115,6 +120,21 @@ export default function BuildingsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedName = normalizeBuildingText(formData.name);
+    const normalizedAddress = normalizeBuildingText(formData.address);
+    const duplicate = buildings.find(
+      (b) =>
+        b.cityId === formData.cityId &&
+        normalizeBuildingText(b.name) === normalizedName &&
+        normalizeBuildingText(b.address) === normalizedAddress,
+    );
+    if (duplicate) {
+      setCreateFormError("A building with this name and address already exists.");
+      return;
+    }
+
+    setCreateFormError("");
+    setError("");
     setCreateLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -139,7 +159,7 @@ export default function BuildingsPage() {
       setToast("Building created successfully.");
       fetchData();
     } catch (err: any) {
-      setError(err.message);
+      setCreateFormError(err.message || "Failed to create building");
     } finally {
       setCreateLoading(false);
     }
@@ -171,6 +191,7 @@ export default function BuildingsPage() {
 
   const handleEdit = (building: Building) => {
     setEditingBuilding(building);
+    setEditFormError("");
     setFormData({
       name: building.name,
       address: building.address,
@@ -182,7 +203,22 @@ export default function BuildingsPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingBuilding) return;
+    const normalizedName = normalizeBuildingText(formData.name);
+    const normalizedAddress = normalizeBuildingText(formData.address);
+    const duplicate = buildings.find(
+      (b) =>
+        b.id !== editingBuilding.id &&
+        b.cityId === editingBuilding.cityId &&
+        normalizeBuildingText(b.name) === normalizedName &&
+        normalizeBuildingText(b.address) === normalizedAddress,
+    );
+    if (duplicate) {
+      setEditFormError("A building with this name and address already exists.");
+      return;
+    }
 
+    setEditFormError("");
+    setError("");
     setUpdateLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -198,7 +234,10 @@ export default function BuildingsPage() {
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to update building");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to update building");
+      }
 
       setShowEditModal(false);
       setEditingBuilding(null);
@@ -206,7 +245,7 @@ export default function BuildingsPage() {
       setToast("Building updated successfully.");
       fetchData();
     } catch (err: any) {
-      setError(err.message);
+      setEditFormError(err.message || "Failed to update building");
     } finally {
       setUpdateLoading(false);
     }
@@ -254,7 +293,10 @@ export default function BuildingsPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => {
+            setCreateFormError("");
+            setShowCreateModal(true);
+          }}
           className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
         >
           + Add Building
@@ -411,6 +453,7 @@ export default function BuildingsPage() {
               className="absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
               onClick={() => {
                 setShowCreateModal(false);
+                setCreateFormError("");
                 setFormData({ name: "", address: "", cityId: "" });
               }}
             ></div>
@@ -426,6 +469,11 @@ export default function BuildingsPage() {
                   <p className="text-sm text-gray-800 mb-4">
                     Select a city first to see existing buildings or add a new one.
                   </p>
+                  {createFormError && (
+                    <div className="mb-4 rounded-md bg-red-50 p-3">
+                      <p className="text-sm font-medium text-red-800">{createFormError}</p>
+                    </div>
+                  )}
 
                   <div className="space-y-6">
                     {/* 1. City Selection (Top) */}
@@ -437,9 +485,10 @@ export default function BuildingsPage() {
                         required
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black font-medium"
                         value={formData.cityId}
-                        onChange={(e) =>
-                          setFormData({ ...formData, cityId: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setCreateFormError("");
+                          setFormData({ ...formData, cityId: e.target.value });
+                        }}
                       >
                         <option value="">Choose a city...</option>
                         {cities.map((city) => (
@@ -509,9 +558,10 @@ export default function BuildingsPage() {
                                 placeholder="e.g. Empire State Building"
                                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                                 value={formData.name}
-                                onChange={(e) =>
-                                  setFormData({ ...formData, name: e.target.value })
-                                }
+                                onChange={(e) => {
+                                  setCreateFormError("");
+                                  setFormData({ ...formData, name: e.target.value });
+                                }}
                               />
                             </div>
                             <div>
@@ -523,9 +573,10 @@ export default function BuildingsPage() {
                                 placeholder="Full street address"
                                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                                 value={formData.address}
-                                onChange={(e) =>
-                                  setFormData({ ...formData, address: e.target.value })
-                                }
+                                onChange={(e) => {
+                                  setCreateFormError("");
+                                  setFormData({ ...formData, address: e.target.value });
+                                }}
                               />
                             </div>
                           </div>
@@ -546,6 +597,7 @@ export default function BuildingsPage() {
                     type="button"
                     onClick={() => {
                       setShowCreateModal(false);
+                      setCreateFormError("");
                       setFormData({ name: "", address: "", cityId: "" });
                     }}
                     className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
@@ -566,6 +618,7 @@ export default function BuildingsPage() {
               className="absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
               onClick={() => {
                 setShowEditModal(false);
+                setEditFormError("");
                 setFormData({ name: "", address: "", cityId: "" });
               }}
             ></div>
@@ -581,6 +634,11 @@ export default function BuildingsPage() {
                   <p className="text-sm text-gray-800 mb-4">
                     Update building details.
                   </p>
+                  {editFormError && (
+                    <div className="mb-4 rounded-md bg-red-50 p-3">
+                      <p className="text-sm font-medium text-red-800">{editFormError}</p>
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     <div>
@@ -592,9 +650,10 @@ export default function BuildingsPage() {
                         required
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                         value={formData.name}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setEditFormError("");
+                          setFormData({ ...formData, name: e.target.value });
+                        }}
                       />
                     </div>
                     <div>
@@ -606,9 +665,10 @@ export default function BuildingsPage() {
                         required
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                         value={formData.address}
-                        onChange={(e) =>
-                          setFormData({ ...formData, address: e.target.value })
-                        }
+                        onChange={(e) => {
+                          setEditFormError("");
+                          setFormData({ ...formData, address: e.target.value });
+                        }}
                       />
                     </div>
                   </div>
@@ -625,6 +685,7 @@ export default function BuildingsPage() {
                     type="button"
                     onClick={() => {
                       setShowEditModal(false);
+                      setEditFormError("");
                       setFormData({ name: "", address: "", cityId: "" });
                     }}
                     className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"

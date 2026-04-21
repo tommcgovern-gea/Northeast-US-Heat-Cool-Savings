@@ -109,6 +109,12 @@ CREATE TABLE IF NOT EXISTS temperature_snapshots (
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_buildings_city_id ON buildings(city_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_buildings_city_name_address_normalized
+  ON buildings (
+    city_id,
+    LOWER(REGEXP_REPLACE(BTRIM(name), '\s+', ' ', 'g')),
+    LOWER(REGEXP_REPLACE(BTRIM(address), '\s+', ' ', 'g'))
+  );
 CREATE INDEX IF NOT EXISTS idx_recipients_building_id ON recipients(building_id);
 CREATE INDEX IF NOT EXISTS idx_alert_logs_city_id ON alert_logs(city_id);
 CREATE INDEX IF NOT EXISTS idx_alert_logs_triggered_at ON alert_logs(triggered_at);

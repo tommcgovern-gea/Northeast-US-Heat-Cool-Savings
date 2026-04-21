@@ -3,6 +3,9 @@ import { db, sql } from "@/lib/db/client";
 import { verifyToken, TokenPayload, canAccessBuilding } from "@/lib/auth";
 import { complianceService } from "@/lib/services/complianceService";
 
+const normalizeBuildingText = (value: string): string =>
+  value.trim().replace(/\s+/g, " ");
+
 export const getBuildings = async (req: NextRequest) => {
   try {
     const authHeader = req.headers.get("authorization");
@@ -88,15 +91,20 @@ export const createBuilding = async (req: NextRequest) => {
     }
 
     const body = await req.json();
+    const normalizedName = typeof body.name === "string" ? normalizeBuildingText(body.name) : "";
+    const normalizedAddress =
+      typeof body.address === "string" ? normalizeBuildingText(body.address) : "";
 
     // validate required fields
-    if (!body.name || !body.address || !body.cityId) {
+    if (!normalizedName || !normalizedAddress || !body.cityId) {
         return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
     }
 
     const existing = await sql`
       SELECT id FROM buildings
-      WHERE LOWER(name) = LOWER(${body.name}) AND LOWER(address) = LOWER(${body.address})
+      WHERE city_id = ${body.cityId}
+        AND LOWER(REGEXP_REPLACE(BTRIM(name), '\s+', ' ', 'g')) = LOWER(${normalizedName})
+        AND LOWER(REGEXP_REPLACE(BTRIM(address), '\s+', ' ', 'g')) = LOWER(${normalizedAddress})
       LIMIT 1
     `;
     if (existing.length > 0) {
@@ -108,8 +116,8 @@ export const createBuilding = async (req: NextRequest) => {
 
     const newBuilding = await db.createBuilding({
       city_id: body.cityId,
-      name: body.name,
-      address: body.address,
+      name: normalizedName,
+      address: normalizedAddress,
       is_active: true,
       is_paused: false,
     });
@@ -198,12 +206,36 @@ export const updateBuilding = async (req: NextRequest, id: string) => {
 
     const body = await req.json();
     const { sql } = await import('@/lib/db/client');
+    const buildings = await db.getBuildings(undefined, id);
+    if (buildings.length === 0) {
+      return NextResponse.json({ message: "Building not found" }, { status: 404 });
+    }
+    const existingBuilding = buildings[0];
 
     const updateData: any = {};
-    if (body.name !== undefined) updateData.name = body.name;
-    if (body.address !== undefined) updateData.address = body.address;
+    if (body.name !== undefined) updateData.name = normalizeBuildingText(String(body.name));
+    if (body.address !== undefined) updateData.address = normalizeBuildingText(String(body.address));
     if (body.isPaused !== undefined) updateData.is_paused = body.isPaused;
     if (body.isActive !== undefined) updateData.is_active = body.isActive;
+
+    const duplicateName =
+      updateData.name !== undefined ? updateData.name : existingBuilding.name;
+    const duplicateAddress =
+      updateData.address !== undefined ? updateData.address : existingBuilding.address;
+    const duplicate = await sql`
+      SELECT id FROM buildings
+      WHERE city_id = ${existingBuilding.city_id}
+        AND id <> ${id}
+        AND LOWER(REGEXP_REPLACE(BTRIM(name), '\s+', ' ', 'g')) = LOWER(${duplicateName})
+        AND LOWER(REGEXP_REPLACE(BTRIM(address), '\s+', ' ', 'g')) = LOWER(${duplicateAddress})
+      LIMIT 1
+    `;
+    if (duplicate.length > 0) {
+      return NextResponse.json(
+        { message: "A building with this name and address already exists." },
+        { status: 409 }
+      );
+    }
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -216,11 +248,7 @@ export const updateBuilding = async (req: NextRequest, id: string) => {
     });
 
     if (updates.length === 0) {
-      const buildings = await db.getBuildings(undefined, id);
-      if (buildings.length === 0) {
-        return NextResponse.json({ message: "Building not found" }, { status: 404 });
-      }
-      const building = buildings[0];
+      const building = existingBuilding;
       return NextResponse.json({
         id: building.id,
         name: building.name,

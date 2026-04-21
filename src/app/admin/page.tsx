@@ -597,42 +597,44 @@ export default function AdminDashboard() {
               cityStats.filter(
                 (c) => c.temperatureTrend && c.temperatureTrend.length > 0,
               ).length > 0 ? (
-              <div className="space-y-4">
-                {cityStats
-                  .filter(
-                    (c) => c.temperatureTrend && c.temperatureTrend.length > 0,
-                  )
-                  .map((city) => {
-                    const pts = city.temperatureTrend!;
-                    const last = pts[pts.length - 1];
-                    const first = pts[0];
-                    const change = first ? last.tempF - first.tempF : 0;
-                    return (
-                      <div
-                        key={city.cityId}
-                        className="p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex justify-between text-sm">
-                          <span className="font-medium text-gray-900">
-                            {city.cityName}
-                          </span>
-                          <span className="text-gray-800">
-                            {last.tempF.toFixed(1)}°F{" "}
-                            {change !== 0 && (change > 0 ? "↑" : "↓")}{" "}
-                            {Math.abs(change).toFixed(1)}°F
-                          </span>
+              <div className="max-h-124 overflow-y-auto">
+                <div className="space-y-4">
+                  {cityStats
+                    .filter(
+                      (c) => c.temperatureTrend && c.temperatureTrend.length > 0,
+                    )
+                    .map((city) => {
+                      const pts = city.temperatureTrend!;
+                      const last = pts[pts.length - 1];
+                      const first = pts[0];
+                      const change = first ? last.tempF - first.tempF : 0;
+                      return (
+                        <div
+                          key={city.cityId}
+                          className="p-3 bg-gray-50 rounded-lg"
+                        >
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium text-gray-900">
+                              {city.cityName}
+                            </span>
+                            <span className="text-gray-800">
+                              {last.tempF.toFixed(1)}°F{" "}
+                              {change !== 0 && (change > 0 ? "↑" : "↓")}{" "}
+                              {Math.abs(change).toFixed(1)}°F
+                            </span>
+                          </div>
+                          <div className="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full"
+                              style={{
+                                width: `${Math.min(100, Math.max(10, 50 + (last.tempF - 50)))}%`,
+                              }}
+                            />
+                          </div>
                         </div>
-                        <div className="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 rounded-full"
-                            style={{
-                              width: `${Math.min(100, Math.max(10, 50 + (last.tempF - 50)))}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                </div>
               </div>
             ) : (
               <p className="text-sm text-gray-800">
@@ -771,57 +773,56 @@ export default function AdminDashboard() {
             </p>
           ) : buildingCompliance.length > 0 ? (
             <div className="max-h-112 overflow-y-auto">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {buildingCompliance.map((b) => {
-                const rate = b.complianceRate ?? 0;
-                const barColor =
-                  b.complianceRate == null
-                    ? "bg-gray-300"
-                    : rate >= 80
-                      ? "bg-green-500"
-                      : rate >= 50
-                        ? "bg-amber-500"
-                        : "bg-red-500";
-                return (
-                  <div
-                    key={b.buildingId}
-                    className="rounded-lg border border-gray-200 bg-gray-50/50 p-3 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <span className="text-sm font-medium text-gray-900 truncate">
-                        {b.buildingName}
-                      </span>
-                      <span
-                        className={`text-sm font-semibold shrink-0 ${
-                          b.complianceRate == null
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {buildingCompliance.map((b) => {
+                  const rate = b.complianceRate ?? 0;
+                  const barColor =
+                    b.complianceRate == null
+                      ? "bg-gray-300"
+                      : rate >= 80
+                        ? "bg-green-500"
+                        : rate >= 50
+                          ? "bg-amber-500"
+                          : "bg-red-500";
+                  return (
+                    <div
+                      key={b.buildingId}
+                      className="rounded-lg border border-gray-200 bg-gray-50/50 p-3 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <span className="text-sm font-medium text-gray-900 truncate">
+                          {b.buildingName}
+                        </span>
+                        <span
+                          className={`text-sm font-semibold shrink-0 ${b.complianceRate == null
                             ? "text-gray-500"
                             : rate >= 80
                               ? "text-green-700"
                               : rate >= 50
                                 ? "text-amber-700"
                                 : "text-red-700"
-                        }`}
-                      >
-                        {b.complianceRate != null
-                          ? `${b.complianceRate.toFixed(1)}%`
-                          : "N/A"}
-                      </span>
+                            }`}
+                        >
+                          {b.complianceRate != null
+                            ? `${b.complianceRate.toFixed(1)}%`
+                            : "N/A"}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${barColor}`}
+                          style={{
+                            width:
+                              b.complianceRate != null
+                                ? `${Math.min(100, b.complianceRate)}%`
+                                : "0%",
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${barColor}`}
-                        style={{
-                          width:
-                            b.complianceRate != null
-                              ? `${Math.min(100, b.complianceRate)}%`
-                              : "0%",
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-gray-800">No compliance data.</p>
