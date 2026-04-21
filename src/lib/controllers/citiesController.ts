@@ -301,7 +301,7 @@ export const deleteCity = async (req: NextRequest, id: string) => {
 
     await db.updateCity(id, { is_active: false });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, action: "deactivated" });
   } catch (error) {
     console.error("Error deleting city:", error);
     return NextResponse.json({ message: "Error deleting city" }, { status: 500 });

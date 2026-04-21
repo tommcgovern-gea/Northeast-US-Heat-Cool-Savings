@@ -334,14 +334,16 @@ export default function CitiesPage() {
                     >
                       <IconEdit />
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteClick(city.id)}
-                      className="p-1.5 text-amber-600 hover:text-amber-900 rounded hover:bg-amber-50"
-                      title="Deactivate"
-                    >
-                      <IconDeactivate />
-                    </button>
+                    {city.isActive && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClick(city.id)}
+                        className="p-1.5 text-amber-600 hover:text-amber-900 rounded hover:bg-amber-50"
+                        title="Deactivate"
+                      >
+                        <IconDeactivate />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -566,7 +568,7 @@ export default function CitiesPage() {
         onClose={() => setDeleteTargetId(null)}
         onConfirm={handleDeleteConfirm}
         title="Deactivate city"
-        message="Are you sure you want to deactivate this city?"
+        message="Are you sure you want to deactivate this city? You can re-enable it later from the edit page."
         confirmLabel="Deactivate"
         cancelLabel="Cancel"
         variant="danger"

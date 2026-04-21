@@ -187,6 +187,10 @@ export default function RecipientsPage() {
       setEditModalError("Please select at least one building.");
       return;
     }
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      setEditModalError("Invalid email address.");
+      return;
+    }
     if (formData.phone && !/^\+?[1-9]\d{9,14}$/.test(formData.phone.replace(/[\s\-().]/g, ""))) {
       setEditModalError("Invalid phone number. Use format: +12223334444");
       return;
@@ -699,7 +703,7 @@ export default function RecipientsPage() {
               onClick={() => setShowEditModal(false)}
             />
             <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full border-2 border-gray-200">
-              <form onSubmit={handleUpdate}>
+              <form onSubmit={handleUpdate} noValidate>
                 <div className="p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Edit Recipient
