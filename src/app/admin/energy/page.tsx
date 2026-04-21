@@ -832,7 +832,7 @@ export default function EnergyPage() {
                           {report.savingsPercentage >= 0 ? "+" : ""}
                           {report.savingsPercentage.toFixed(1)}%
                         </span>{" "}
-                        ({report.savingsKBTU >= 0 ? "+" : ""}
+                        ({report.savingsKBTU > 0 ? "+" : ""}
                         {report.savingsKBTU.toLocaleString()} kBTU)
                       </p>
                     </div>

@@ -186,7 +186,7 @@ export class ReportService {
         doc.fillColor(savingsColor);
         doc.text(`Savings Percentage: ${reportData.comparison.savingsPercentage >= 0 ? '+' : ''}${reportData.comparison.savingsPercentage.toFixed(2)}%`, 50);
         doc.moveDown(0.3);
-        doc.text(`Savings (kBTU): ${reportData.comparison.savingsKBTU >= 0 ? '+' : ''}${reportData.comparison.savingsKBTU.toLocaleString()}`, 50);
+        doc.text(`Savings (kBTU): ${reportData.comparison.savingsKBTU > 0 ? '+' : ''}${reportData.comparison.savingsKBTU.toLocaleString()}`, 50);
         doc.fillColor('black');
         doc.moveDown(1.5);
 
@@ -328,7 +328,7 @@ Building: ${reportData.buildingName}
 Period: ${monthNames[reportData.month - 1]} ${reportData.year}
 
 Total Consumption: ${reportData.comparison.totalKBTU.toLocaleString()} kBTU
-Savings: ${reportData.comparison.savingsPercentage >= 0 ? '+' : ''}${reportData.comparison.savingsPercentage.toFixed(2)}% (${reportData.comparison.savingsKBTU >= 0 ? '+' : ''}${reportData.comparison.savingsKBTU.toLocaleString()} kBTU)
+Savings: ${reportData.comparison.savingsPercentage >= 0 ? '+' : ''}${reportData.comparison.savingsPercentage.toFixed(2)}% (${reportData.comparison.savingsKBTU > 0 ? '+' : ''}${reportData.comparison.savingsKBTU.toLocaleString()} kBTU)
 
 View full report: ${pdfUrl}
     `;
@@ -338,7 +338,7 @@ View full report: ${pdfUrl}
       <p><strong>Building:</strong> ${reportData.buildingName}</p>
       <p><strong>Period:</strong> ${monthNames[reportData.month - 1]} ${reportData.year}</p>
       <p><strong>Total Consumption:</strong> ${reportData.comparison.totalKBTU.toLocaleString()} kBTU</p>
-      <p><strong>Savings:</strong> <span style="color: ${reportData.comparison.savingsPercentage >= 0 ? 'green' : 'red'}">${reportData.comparison.savingsPercentage >= 0 ? '+' : ''}${reportData.comparison.savingsPercentage.toFixed(2)}%</span> (${reportData.comparison.savingsKBTU >= 0 ? '+' : ''}${reportData.comparison.savingsKBTU.toLocaleString()} kBTU)</p>
+      <p><strong>Savings:</strong> <span style="color: ${reportData.comparison.savingsPercentage >= 0 ? 'green' : 'red'}">${reportData.comparison.savingsPercentage >= 0 ? '+' : ''}${reportData.comparison.savingsPercentage.toFixed(2)}%</span> (${reportData.comparison.savingsKBTU > 0 ? '+' : ''}${reportData.comparison.savingsKBTU.toLocaleString()} kBTU)</p>
       <p><a href="${pdfUrl}">View Full Report</a></p>
     `;
 

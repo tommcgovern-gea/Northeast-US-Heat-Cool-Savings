@@ -205,7 +205,7 @@ export default function BuildingDetailPage() {
                   <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 wrap-break-word">
                     {monthNames[data.latestEnergyReport.month - 1]} {data.latestEnergyReport.year}
                     {" · "}
-                    {data.latestEnergyReport.savingsKBTU >= 0 ? "+" : ""}
+                    {data.latestEnergyReport.savingsKBTU > 0 ? "+" : ""}
                     {data.latestEnergyReport.savingsKBTU.toLocaleString()} kBTU
                   </p>
                 </div>

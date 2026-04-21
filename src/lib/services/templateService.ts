@@ -27,6 +27,20 @@ export interface TemplateVariables {
 }
 
 export class TemplateService {
+  async getTemplateByCityAndType(
+    cityId: string,
+    templateType: 'alert' | 'daily_summary' | 'warning'
+  ): Promise<MessageTemplate | null> {
+    const result = await sql`
+      SELECT * FROM message_templates
+      WHERE city_id = ${cityId}
+        AND template_type = ${templateType}
+      LIMIT 1
+    `;
+    const rows = toRows(result);
+    return (rows[0] as MessageTemplate) ?? null;
+  }
+
   async getTemplate(cityId: string, templateType: 'alert' | 'daily_summary' | 'warning'): Promise<MessageTemplate | null> {
     try {
       const result = await sql`
@@ -90,7 +104,7 @@ export class TemplateService {
     subject?: string,
     variables?: any
   ): Promise<MessageTemplate> {
-    const existing = await this.getTemplate(cityId, templateType);
+    const existing = await this.getTemplateByCityAndType(cityId, templateType);
 
     if (existing) {
       const result = await sql`
@@ -98,6 +112,7 @@ export class TemplateService {
         SET content = ${content},
             subject = ${subject || null},
             variables = ${JSON.stringify(variables || {})}::jsonb,
+            is_active = true,
             updated_at = NOW()
         WHERE id = ${existing.id}
         RETURNING *

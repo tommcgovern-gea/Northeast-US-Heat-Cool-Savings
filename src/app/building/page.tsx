@@ -269,7 +269,7 @@ export default function BuildingDashboard() {
                         {monthNames[report.month - 1]} {report.year}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {report.savingsKBTU >= 0 ? "+" : ""}
+                        {report.savingsKBTU > 0 ? "+" : ""}
                         {report.savingsKBTU.toLocaleString()} kBTU
                       </p>
                     </div>
