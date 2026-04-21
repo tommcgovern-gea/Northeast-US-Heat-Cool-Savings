@@ -85,12 +85,20 @@ function UploadContent() {
     return (
       <div className="min-h-[40vh] flex items-center justify-center px-4 sm:px-6 lg:px-8">
         <div
-          className={`rounded-lg p-6 ${
+          className={`rounded-lg p-6 max-w-md w-full ${
             result?.success ? "bg-green-50 border border-green-200 text-green-800" : "bg-red-50 border border-red-200 text-red-800"
           }`}
         >
           <h1 className="text-xl font-semibold">{result?.success ? "Upload complete" : "Upload failed"}</h1>
           <p className="mt-2">{result?.message}</p>
+          {result?.success && (
+            <a
+              href="/building"
+              className="mt-4 inline-flex items-center px-4 py-2 rounded-md bg-green-700 text-white text-sm font-medium hover:bg-green-800"
+            >
+              Go to Portal →
+            </a>
+          )}
         </div>
       </div>
     );

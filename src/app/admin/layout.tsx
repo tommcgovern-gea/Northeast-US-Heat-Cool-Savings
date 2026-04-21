@@ -153,9 +153,20 @@ export default function AdminLayout({
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-              <span className="hidden lg:inline text-sm text-gray-700 truncate max-w-[180px] xl:max-w-[220px]" title={user.email || undefined}>
-                {user.email || `Role: ${user.role}`}
-              </span>
+              <div className="hidden lg:flex items-center gap-2">
+                {user.email && (
+                  <span className="text-sm text-gray-700 truncate max-w-[160px] xl:max-w-[200px]" title={user.email}>
+                    {user.email}
+                  </span>
+                )}
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                  user.role === "ADMIN"
+                    ? "bg-blue-100 text-blue-800"
+                    : "bg-purple-100 text-purple-800"
+                }`}>
+                  {user.role}
+                </span>
+              </div>
               <button
                 onClick={handleLogout}
                 className="px-2 sm:px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md cursor-pointer transition-colors whitespace-nowrap"

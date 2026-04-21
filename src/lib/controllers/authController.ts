@@ -33,6 +33,13 @@ export const login = async (req: Request) => {
       );
     }
 
+    if (user.is_active === false) {
+      return NextResponse.json(
+        { message: "Your account has been deactivated. Please contact your administrator." },
+        { status: 403 }
+      );
+    }
+
     const raw = user.building_ids ?? [];
     const buildingIds = Array.isArray(raw) ? raw.filter(Boolean) : (raw ? [raw] : []);
 

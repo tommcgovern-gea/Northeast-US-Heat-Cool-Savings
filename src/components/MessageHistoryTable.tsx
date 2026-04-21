@@ -36,6 +36,8 @@ export interface MessageHistoryTableProps {
   };
   /** Optional class for scrollable wrapper (e.g. max-h-[28rem] overflow-y-auto) to fix height. */
   scrollClassName?: string;
+  onRetryMessage?: (messageId: string) => void;
+  retryingMessageId?: string | null;
 }
 
 function DeliveryBadge({ delivered, deliveryStatus }: { delivered: boolean; deliveryStatus?: string }) {
@@ -74,6 +76,8 @@ export function MessageHistoryTable({
   emptyMessage = "No messages yet.",
   pagination,
   scrollClassName,
+  onRetryMessage,
+  retryingMessageId,
 }: MessageHistoryTableProps) {
   if (error) {
     return <p className="text-sm text-red-600">{error}</p>;
@@ -153,6 +157,11 @@ export function MessageHistoryTable({
                     Upload
                   </th>
                 )}
+                {variant === "full" && onRetryMessage && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Retry
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -180,7 +189,10 @@ export function MessageHistoryTable({
                     </>
                   )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {new Date(m.sentAt).toLocaleString()}
+                    {(() => {
+                      const d = new Date(m.sentAt);
+                      return d.getFullYear() < 2000 ? "—" : d.toLocaleString();
+                    })()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {variant === "compact" ? (
@@ -209,6 +221,22 @@ export function MessageHistoryTable({
                         )
                       ) : (
                         <UploadCell hasUpload={m.hasUpload} />
+                      )}
+                    </td>
+                  )}
+                  {variant === "full" && onRetryMessage && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {!m.delivered ? (
+                        <button
+                          type="button"
+                          onClick={() => onRetryMessage(m.id)}
+                          disabled={retryingMessageId === m.id}
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {retryingMessageId === m.id ? "Retrying..." : "Retry"}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
                       )}
                     </td>
                   )}

@@ -80,7 +80,7 @@ export async function GET(
           AND (u.is_active IS NULL OR u.is_active = true)
       `,
       sql`
-        SELECT p.*, m.message_type, m.sent_at
+        SELECT p.id, p.file_name, p.file_url, p.uploaded_at, p.is_compliant, m.message_type, m.sent_at
         FROM photo_uploads p
         JOIN messages m ON m.id = p.message_id
         WHERE p.building_id = ${params.id}
@@ -91,7 +91,6 @@ export async function GET(
         SELECT * FROM energy_reports
         WHERE building_id = ${params.id}
         ORDER BY year DESC, month DESC
-        LIMIT 1
       `,
     ]);
 
@@ -137,12 +136,21 @@ export async function GET(
       recentUploads: recentUploadsRows.map((upload: any) => ({
         id: upload.id,
         fileName: upload.file_name,
+        fileUrl: upload.file_url,
         uploadedAt: upload.uploaded_at,
         isCompliant: upload.is_compliant,
         messageType: upload.message_type,
         sentAt: upload.sent_at,
       })),
       latestEnergyReport,
+      energyReports: energyReportRows.map((r: any) => ({
+        id: r.id,
+        month: r.month,
+        year: r.year,
+        savingsPercentage: Number(r.savings_percentage),
+        savingsKBTU: Number(r.savings_kbtu),
+        pdfUrl: r.pdf_url,
+      })),
     });
   } catch (error) {
     console.error('Error fetching building dashboard:', error);

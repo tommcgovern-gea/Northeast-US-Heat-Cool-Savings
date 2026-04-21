@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MessageHistoryTable, type MessageHistoryRow } from "@/components/MessageHistoryTable";
+import { Toast } from "@/components/Toast";
 
 export default function MessagesPage() {
   const [messages, setMessages] = useState<MessageHistoryRow[]>([]);
@@ -12,6 +13,9 @@ export default function MessagesPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [limit, setLimit] = useState(10);
+  const [retrying, setRetrying] = useState(false);
+  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
     fetchBuildings();
@@ -68,6 +72,78 @@ export default function MessagesPage() {
     }
   };
 
+  const handleRetryFailed = async () => {
+    try {
+      setRetrying(true);
+      setError("");
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch("/api/admin/trigger", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "send-pending" }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to retry pending messages");
+      }
+
+      setToast({
+        type: "success",
+        message: "Retry started for pending/failed messages.",
+      });
+      await fetchMessages(1, limit);
+    } catch (err: any) {
+      setToast({
+        type: "error",
+        message: err.message || "Failed to retry pending messages",
+      });
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const handleRetryMessage = async (messageId: string) => {
+    try {
+      setRetryingMessageId(messageId);
+      setError("");
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch("/api/admin/messages", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ messageId }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to retry message");
+      }
+
+      setToast({
+        type: data.success ? "success" : "error",
+        message: data.message || (data.success ? "Message retried." : "Message retry failed."),
+      });
+      await fetchMessages(page, limit);
+    } catch (err: any) {
+      setToast({
+        type: "error",
+        message: err.message || "Failed to retry message",
+      });
+    } finally {
+      setRetryingMessageId(null);
+    }
+  };
+
   if (loading && messages.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -85,7 +161,15 @@ export default function MessagesPage() {
             View all sent messages and delivery status
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRetryFailed}
+            disabled={retrying}
+            className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {retrying ? "Retrying..." : "Retry Failed"}
+          </button>
           <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
             Filter by Building:
           </label>
@@ -119,6 +203,8 @@ export default function MessagesPage() {
             messages={messages}
             variant="full"
             loading={loading}
+            onRetryMessage={handleRetryMessage}
+            retryingMessageId={retryingMessageId}
             pagination={{
               page,
               limit,
@@ -133,6 +219,14 @@ export default function MessagesPage() {
           />
         </div>
       </div>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

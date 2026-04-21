@@ -421,16 +421,31 @@ export default function EnergyPage() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        const msg = data.message || "";
+        const isDuplicate =
+          msg.toLowerCase().includes("already") ||
+          msg.toLowerCase().includes("exist") ||
+          msg.toLowerCase().includes("duplicate") ||
+          response.status === 409;
         setShowReportModal(false);
         setReportFormData({ month: "", year: "", emailTo: "" });
-        setError(data.message || "Failed to generate report");
+        setError(
+          isDuplicate
+            ? `Report for this period has already been generated. Please select a different period.`
+            : msg || "Failed to generate report"
+        );
         return;
       }
 
       setShowReportModal(false);
       setReportFormData({ month: "", year: "", emailTo: "" });
       setError("");
-      setSuccessMessage("Report generated successfully.");
+      const emailMsg = data.emailSent
+        ? " Email sent successfully."
+        : data.comparison?.totalKBTU !== undefined && reportFormData.emailTo
+        ? " Email could not be sent — check the email address and email service configuration."
+        : "";
+      setSuccessMessage(`Report generated successfully.${emailMsg}`);
       fetchEnergyData();
     } catch (err: any) {
       setError(err.message || "Failed to generate report");
@@ -861,7 +876,18 @@ export default function EnergyPage() {
                             const { token: linkToken } = await tr.json();
                             if (!linkToken) return;
                             const url = `${window.location.origin}/api/reports/${report.id}/pdf?t=${linkToken}`;
-                            await navigator.clipboard.writeText(url);
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              await navigator.clipboard.writeText(url);
+                            } else {
+                              const ta = document.createElement("textarea");
+                              ta.value = url;
+                              ta.style.position = "fixed";
+                              ta.style.opacity = "0";
+                              document.body.appendChild(ta);
+                              ta.select();
+                              document.execCommand("copy");
+                              document.body.removeChild(ta);
+                            }
                             setLinkCopiedReportId(report.id);
                             setTimeout(() => setLinkCopiedReportId(null), 2000);
                           }}
@@ -921,6 +947,13 @@ export default function EnergyPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
+                    {(energyData.utilityHistory ?? []).length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-500">
+                          No utility data available for this building. Upload data to get started.
+                        </td>
+                      </tr>
+                    )}
                     {(energyData.utilityHistory ?? []).map((utility) => (
                       <tr key={utility.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -1083,14 +1116,19 @@ export default function EnergyPage() {
                           <input
                             type="number"
                             required
+                            min={1990}
+                            max={new Date().getFullYear()}
+                            step={1}
+                            placeholder={String(new Date().getFullYear())}
+                            pattern="\d{4}"
                             className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
                             value={uploadFormData.year}
-                            onChange={(e) =>
-                              setUploadFormData({
-                                ...uploadFormData,
-                                year: e.target.value,
-                              })
-                            }
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "" || /^\d{0,4}$/.test(v)) {
+                                setUploadFormData({ ...uploadFormData, year: v });
+                              }
+                            }}
                           />
                         </div>
                       </div>
@@ -1135,58 +1173,89 @@ export default function EnergyPage() {
                         </>
                       ) : (
                         <>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-800">
-                              Electric (kWh) - Optional
-                            </label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                              value={uploadFormData.electricKWH}
-                              onChange={(e) =>
-                                setUploadFormData({
-                                  ...uploadFormData,
-                                  electricKWH: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-800">
-                              Gas (therms) - Optional
-                            </label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                              value={uploadFormData.gasTherms}
-                              onChange={(e) =>
-                                setUploadFormData({
-                                  ...uploadFormData,
-                                  gasTherms: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-800">
-                              Total kBTU *
-                            </label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              required
-                              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                              value={uploadFormData.totalKBTU}
-                              onChange={(e) =>
-                                setUploadFormData({
-                                  ...uploadFormData,
-                                  totalKBTU: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
+                          {(() => {
+                            const calcKBTU = (data: typeof uploadFormData) => {
+                              const elec = parseFloat(data.electricKWH) || 0;
+                              const gas = parseFloat(data.gasTherms) || 0;
+                              const oil = parseFloat(data.fuelOilGallons) || 0;
+                              const steam = parseFloat(data.districtSteamMBTU) || 0;
+                              const total = elec * 3.412 + gas * 100 + oil * 139.6 + steam * 1000;
+                              return total > 0 ? total.toFixed(2) : "";
+                            };
+                            const updateFuelField = (field: string, value: string) => {
+                              const updated = { ...uploadFormData, [field]: value };
+                              const computed = calcKBTU(updated);
+                              setUploadFormData({ ...updated, totalKBTU: computed || updated.totalKBTU });
+                            };
+                            return (
+                              <>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-800">
+                                    Electric (kWh) - Optional
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    value={uploadFormData.electricKWH}
+                                    onChange={(e) => updateFuelField("electricKWH", e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-800">
+                                    Gas (therms) - Optional
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    value={uploadFormData.gasTherms}
+                                    onChange={(e) => updateFuelField("gasTherms", e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-800">
+                                    Fuel Oil (gallons) - Optional
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    value={uploadFormData.fuelOilGallons}
+                                    onChange={(e) => updateFuelField("fuelOilGallons", e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-800">
+                                    District Steam (MBTU) - Optional
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    value={uploadFormData.districtSteamMBTU}
+                                    onChange={(e) => updateFuelField("districtSteamMBTU", e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-800">
+                                    Total kBTU *
+                                    <span className="ml-1 text-xs font-normal text-gray-500">(auto-calculated from above)</span>
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    required
+                                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    value={uploadFormData.totalKBTU}
+                                    onChange={(e) =>
+                                      setUploadFormData({ ...uploadFormData, totalKBTU: e.target.value })
+                                    }
+                                  />
+                                </div>
+                              </>
+                            );
+                          })()}
                         </>
                       )}
                     </div>

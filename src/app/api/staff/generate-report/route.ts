@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken, TokenPayload } from '@/lib/auth';
 import { reportService } from '@/lib/services/reportService';
 import { sql } from '@/lib/db/client';
+import { requireAuth } from '@/lib/requireAuth';
 
 export async function POST(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const user = verifyToken(token) as TokenPayload;
-
-    if (!user || (user.role !== 'ADMIN' && user.role !== 'STAFF')) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await requireAuth(req, ["ADMIN", "STAFF"]);
+    if (auth.error) return auth.error;
 
     const body = await req.json();
     const { buildingId, month, year, emailTo } = body;

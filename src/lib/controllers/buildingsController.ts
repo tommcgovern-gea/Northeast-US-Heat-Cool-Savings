@@ -17,6 +17,11 @@ export const getBuildings = async (req: NextRequest) => {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 });
     }
 
+    const dbUser = await db.getUserById(user.userId);
+    if (!dbUser || dbUser.is_active === false) {
+      return NextResponse.json({ message: "Account is inactive" }, { status: 403 });
+    }
+
     let buildings: any[];
 
     if (user.role === "ADMIN" || user.role === "STAFF") {
@@ -83,10 +88,22 @@ export const createBuilding = async (req: NextRequest) => {
     }
 
     const body = await req.json();
-    
+
     // validate required fields
     if (!body.name || !body.address || !body.cityId) {
         return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
+    }
+
+    const existing = await sql`
+      SELECT id FROM buildings
+      WHERE LOWER(name) = LOWER(${body.name}) AND LOWER(address) = LOWER(${body.address})
+      LIMIT 1
+    `;
+    if (existing.length > 0) {
+      return NextResponse.json(
+        { message: "A building with this name and address already exists." },
+        { status: 409 }
+      );
     }
 
     const newBuilding = await db.createBuilding({

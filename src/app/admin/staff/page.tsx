@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { Toast } from "@/components/Toast";
 
 interface StaffUser {
   id: string;
@@ -29,6 +30,7 @@ export default function StaffSignupPage() {
   const [updateError, setUpdateError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<StaffUser | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStaff();
@@ -105,6 +107,7 @@ export default function StaffSignupPage() {
       if (!res.ok) throw new Error(data.message || "Failed to create staff");
       setShowAddModal(false);
       setFormData(emptyForm);
+      setToast("Staff member created successfully.");
       fetchStaff();
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "Failed to create staff");
@@ -151,6 +154,7 @@ export default function StaffSignupPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Failed to update staff");
       setEditingStaff(null);
+      setToast("Staff member updated successfully.");
       fetchStaff();
     } catch (err: unknown) {
       setUpdateError(err instanceof Error ? err.message : "Failed to update staff");
@@ -247,11 +251,14 @@ export default function StaffSignupPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             {staff.length === 0 ? (
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-6 py-8 text-center text-sm text-gray-500"
-                >
-                  No staff users found
+                <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
+                  No staff members yet —{" "}
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="text-blue-600 hover:underline font-medium"
+                  >
+                    click here to add one
+                  </button>
                 </td>
               </tr>
             ) : (
@@ -490,6 +497,8 @@ export default function StaffSignupPage() {
         variant="danger"
         loading={deleteLoading}
       />
+
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { Toast } from "@/components/Toast";
 
 interface City {
   id: string;
@@ -39,36 +40,47 @@ export default function CitiesPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [modalError, setModalError] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchWrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchCities();
   }, []);
 
-  const handleCitySearch = async (query: string) => {
+  const handleCitySearch = (query: string) => {
     setFormData((prev) => ({ ...prev, name: query }));
     if (query.length < 1) {
       setSuggestions([]);
       return;
     }
-
-    setSearching(true);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(
-        `/api/admin/cities/search?q=${encodeURIComponent(query)}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setSuggestions(data);
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          `/api/admin/cities/search?q=${encodeURIComponent(query)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const seen = new Set<string>();
+          const unique = (data as any[]).filter((s) => {
+            const key = s.displayName || s.name;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setSuggestions(unique);
+        }
+      } catch (e) {
+        console.error("Search error:", e);
+      } finally {
+        setSearching(false);
       }
-    } catch (e) {
-      console.error("Search error:", e);
-    } finally {
-      setSearching(false);
-    }
+    }, 300);
   };
 
   const selectSuggestion = (s: any) => {
@@ -107,8 +119,43 @@ export default function CitiesPage() {
     }
   };
 
+  const isDuplicateCityConfig = () => {
+    const normalizedName = formData.name.trim().toLowerCase();
+    const normalizedState = formData.state.trim().toLowerCase();
+    const normalizedOffice = formData.nwsOffice.trim().toUpperCase();
+    const gridX = Number(formData.nwsGridX);
+    const gridY = Number(formData.nwsGridY);
+
+    if (!normalizedName || !normalizedState || !normalizedOffice || Number.isNaN(gridX) || Number.isNaN(gridY)) {
+      return false;
+    }
+
+    return cities.some((city) => {
+      return (
+        city.name.trim().toLowerCase() === normalizedName &&
+        city.state.trim().toLowerCase() === normalizedState &&
+        city.nwsOffice.trim().toUpperCase() === normalizedOffice &&
+        Number(city.nwsGridX) === gridX &&
+        Number(city.nwsGridY) === gridY
+      );
+    });
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setModalError("");
+    if (!formData.nwsOffice.trim()) {
+      setModalError("NWS Office is required. Search a city above to auto-fill.");
+      return;
+    }
+    if (!formData.nwsGridX || !formData.nwsGridY) {
+      setModalError("Grid X and Grid Y are required. Search a city above to auto-fill.");
+      return;
+    }
+    if (isDuplicateCityConfig()) {
+      setModalError("A city with this name and NWS configuration already exists.");
+      return;
+    }
     setCreateLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -137,6 +184,7 @@ export default function CitiesPage() {
       }
 
       setShowCreateModal(false);
+      setSuggestions([]);
       setFormData({
         name: "",
         state: "",
@@ -146,9 +194,10 @@ export default function CitiesPage() {
         alertTempDelta: "5",
         alertWindowHours: "6",
       });
+      setToast("City created successfully.");
       fetchCities();
     } catch (err: any) {
-      setError(err.message);
+      setModalError(err.message);
     } finally {
       setCreateLoading(false);
     }
@@ -236,6 +285,13 @@ export default function CitiesPage() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
+            {cities.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-500">
+                  No cities added yet. Click &quot;+ Add City&quot; to create one.
+                </td>
+              </tr>
+            )}
             {cities.map((city) => (
               <tr key={city.id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -319,7 +375,12 @@ export default function CitiesPage() {
                     Create New City
                   </h3>
                   <div className="space-y-4">
-                    <div className="relative">
+                    {modalError && (
+                      <div className="rounded-md bg-red-50 p-3 text-sm text-red-800">
+                        {modalError}
+                      </div>
+                    )}
+                    <div className="relative" ref={searchWrapperRef}>
                       <label className="block text-sm font-medium text-gray-700">
                         Search City
                       </label>
@@ -330,6 +391,7 @@ export default function CitiesPage() {
                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
                         value={formData.name}
                         onChange={(e) => handleCitySearch(e.target.value)}
+                        onBlur={() => setTimeout(() => setSuggestions([]), 150)}
                       />
                       {searching && (
                         <div className="absolute right-3 top-9">
@@ -342,6 +404,7 @@ export default function CitiesPage() {
                             <div
                               key={idx}
                               className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-blue-600 hover:text-white text-black"
+                              onMouseDown={(e) => e.preventDefault()}
                               onClick={() => selectSuggestion(s)}
                             >
                               {s.displayName}
@@ -509,6 +572,8 @@ export default function CitiesPage() {
         variant="danger"
         loading={deleteLoading}
       />
+
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }

@@ -9,6 +9,15 @@ interface Building {
   cityName: string;
 }
 
+interface EnergyReport {
+  id?: string;
+  month: number;
+  year: number;
+  savingsPercentage: number;
+  savingsKBTU: number;
+  pdfUrl: string;
+}
+
 interface DashboardData {
   building: {
     id: string;
@@ -36,19 +45,14 @@ interface DashboardData {
   recentUploads: Array<{
     id: string;
     fileName: string;
+    fileUrl?: string;
     uploadedAt: string;
     isCompliant: boolean;
     messageType: string;
     sentAt: string;
   }>;
-  latestEnergyReport: {
-    id?: string;
-    month: number;
-    year: number;
-    savingsPercentage: number;
-    savingsKBTU: number;
-    pdfUrl: string;
-  } | null;
+  latestEnergyReport: EnergyReport | null;
+  energyReports?: EnergyReport[];
 }
 
 export default function BuildingDashboard() {
@@ -241,110 +245,104 @@ export default function BuildingDashboard() {
         </div>
       </div>
 
-      {/* Energy Report — single row like admin */}
+      {/* Energy Reports */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        {data.latestEnergyReport ? (
-          <div className="p-5 sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4 min-w-0 flex-1">
-                <div className="shrink-0 w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center p-1">
-                  <span className="text-sm font-bold text-emerald-700 leading-tight text-center">
-                    {data.latestEnergyReport.savingsPercentage >= 0 ? "+" : ""}
-                    {data.latestEnergyReport.savingsPercentage.toFixed(0)}%
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Latest Energy Report
-                  </p>
-                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 wrap-break-word">
-                    {monthNames[data.latestEnergyReport.month - 1]} {data.latestEnergyReport.year}
-                    {" · "}
-                    {data.latestEnergyReport.savingsKBTU >= 0 ? "+" : ""}
-                    {data.latestEnergyReport.savingsKBTU.toLocaleString()} kBTU
-                  </p>
-                </div>
-              </div>
-              {(data.latestEnergyReport.pdfUrl || (data.latestEnergyReport as { id?: string }).id) && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const report = data.latestEnergyReport;
-                      if (!report) return;
-                      const reportId = (report as { id?: string }).id;
-                      if (!reportId) {
-                        if (report.pdfUrl) window.open(report.pdfUrl, "_blank");
-                        return;
-                      }
-                      const token = localStorage.getItem("token");
-                      if (!token) return;
-                      const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                      });
-                      if (!tr.ok) return;
-                      const { token: linkToken } = await tr.json();
-                      if (!linkToken) return;
-                      const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
-                      window.open(url, "_blank");
-                    }}
-                    className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
-                  >
-                    View Report
-                  </button>
-                  {(data.latestEnergyReport as { id?: string }).id && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const report = data.latestEnergyReport;
-                        if (!report) return;
-                        const reportId = (report as { id?: string }).id;
-                        if (!reportId) return;
-                        try {
+        <div className="px-4 py-5 sm:p-6">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Energy Reports</h2>
+          {(data.energyReports ?? (data.latestEnergyReport ? [data.latestEnergyReport] : [])).length === 0 ? (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <p className="text-sm text-gray-700">No energy reports yet for this building.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(data.energyReports ?? (data.latestEnergyReport ? [data.latestEnergyReport] : [])).map((report, idx) => (
+                <div key={report.id ?? idx} className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg border border-gray-200 bg-gray-50">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="shrink-0 w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center p-1">
+                      <span className="text-sm font-bold text-emerald-700 leading-tight text-center">
+                        {report.savingsPercentage >= 0 ? "+" : ""}
+                        {report.savingsPercentage.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {monthNames[report.month - 1]} {report.year}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {report.savingsKBTU >= 0 ? "+" : ""}
+                        {report.savingsKBTU.toLocaleString()} kBTU
+                      </p>
+                    </div>
+                  </div>
+                  {(report.pdfUrl || report.id) && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!report.id) {
+                            if (report.pdfUrl) window.open(report.pdfUrl, "_blank");
+                            return;
+                          }
                           const token = localStorage.getItem("token");
                           if (!token) return;
-                          const tr = await fetch(`/api/reports/${reportId}/pdf-token`, {
+                          const tr = await fetch(`/api/reports/${report.id}/pdf-token`, {
                             headers: { Authorization: `Bearer ${token}` },
                           });
                           if (!tr.ok) return;
                           const { token: linkToken } = await tr.json();
                           if (!linkToken) return;
-                          const url = `${window.location.origin}/api/reports/${reportId}/pdf?t=${linkToken}`;
-                          if (navigator.clipboard?.writeText) {
-                            await navigator.clipboard.writeText(url);
-                          } else {
-                            const ta = document.createElement("textarea");
-                            ta.value = url;
-                            ta.style.position = "fixed";
-                            ta.style.opacity = "0";
-                            document.body.appendChild(ta);
-                            ta.select();
-                            document.execCommand("copy");
-                            document.body.removeChild(ta);
-                          }
-                          setLinkCopied(true);
-                          setTimeout(() => setLinkCopied(false), 2500);
-                        } catch {
-                          // copy failed
-                        }
-                      }}
-                      className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 cursor-pointer"
-                    >
-                      {linkCopied ? "Copied" : "Copy link"}
-                    </button>
+                          const url = `${window.location.origin}/api/reports/${report.id}/pdf?t=${linkToken}`;
+                          window.open(url, "_blank");
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 cursor-pointer"
+                      >
+                        View
+                      </button>
+                      {report.id && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!report.id) return;
+                            try {
+                              const token = localStorage.getItem("token");
+                              if (!token) return;
+                              const tr = await fetch(`/api/reports/${report.id}/pdf-token`, {
+                                headers: { Authorization: `Bearer ${token}` },
+                              });
+                              if (!tr.ok) return;
+                              const { token: linkToken } = await tr.json();
+                              if (!linkToken) return;
+                              const url = `${window.location.origin}/api/reports/${report.id}/pdf?t=${linkToken}`;
+                              if (navigator.clipboard?.writeText) {
+                                await navigator.clipboard.writeText(url);
+                              } else {
+                                const ta = document.createElement("textarea");
+                                ta.value = url;
+                                ta.style.position = "fixed";
+                                ta.style.opacity = "0";
+                                document.body.appendChild(ta);
+                                ta.select();
+                                document.execCommand("copy");
+                                document.body.removeChild(ta);
+                              }
+                              setLinkCopied(true);
+                              setTimeout(() => setLinkCopied(false), 2500);
+                            } catch {
+                              // copy failed
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 cursor-pointer"
+                        >
+                          {linkCopied ? "Copied" : "Copy link"}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
+              ))}
             </div>
-          </div>
-        ) : (
-          <div className="p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-3">Latest Energy Report</h2>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <p className="text-sm text-gray-700">No energy report yet for this building.</p>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Recent Messages */}
@@ -465,25 +463,37 @@ export default function BuildingDashboard() {
               {data.recentUploads.map((upload) => (
                 <div
                   key={upload.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-lg"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">
                       {upload.fileName}
                     </p>
                     <p className="text-xs text-gray-800">
                       {new Date(upload.uploadedAt).toLocaleString()}
                     </p>
                   </div>
-                  <span
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      upload.isCompliant
-                        ? "bg-green-100 text-green-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {upload.isCompliant ? "Compliant" : "Late"}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        upload.isCompliant
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {upload.isCompliant ? "Compliant" : "Late"}
+                    </span>
+                    {upload.fileUrl && (
+                      <a
+                        href={upload.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-3 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 cursor-pointer"
+                      >
+                        View
+                      </a>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

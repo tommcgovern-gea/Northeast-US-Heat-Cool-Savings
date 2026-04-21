@@ -18,6 +18,11 @@ export const getRecipients = async (req: NextRequest) => {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 });
     }
 
+    const dbUser = await db.getUserById(user.userId);
+    if (!dbUser || dbUser.is_active === false) {
+      return NextResponse.json({ message: "Account is inactive" }, { status: 403 });
+    }
+
     const buildingId = req.nextUrl.searchParams.get("buildingId");
 
     if (!buildingId) {

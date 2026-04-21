@@ -35,6 +35,8 @@ export default function CityDetailPage() {
     isActive: true,
   });
   const [saving, setSaving] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     if (cityId) {
@@ -76,6 +78,41 @@ export default function CityDetailPage() {
     }
   };
 
+  const handleCitySearch = async (query: string) => {
+    setFormData((prev) => ({ ...prev, name: query }));
+    if (query.length < 1) {
+      setSuggestions([]);
+      return;
+    }
+    try {
+      setSearching(true);
+      const token = localStorage.getItem("token");
+      const res = await fetch(
+        `/api/admin/cities/search?q=${encodeURIComponent(query)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      setSuggestions(Array.isArray(data) ? data : []);
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectSuggestion = (s: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      name: s.name,
+      state: s.state,
+      nwsOffice: s.nwsOffice,
+      nwsGridX: String(s.nwsGridX),
+      nwsGridY: String(s.nwsGridY),
+    }));
+    setSuggestions([]);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -108,9 +145,8 @@ export default function CityDetailPage() {
         throw new Error(data.message || "Failed to update city");
       }
 
-      const updated = await response.json();
-      setCity(updated);
-      alert("City updated successfully!");
+      await response.json();
+      router.push("/admin/cities");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -172,15 +208,36 @@ export default function CityDetailPage() {
               <label className="block text-sm font-medium text-gray-700">
                 City Name
               </label>
-              <input
-                type="text"
-                required
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  placeholder="Type to search city (e.g. Buffalo, NY)"
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
+                  value={formData.name}
+                  onChange={(e) => handleCitySearch(e.target.value)}
+                  onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+                />
+                {searching && (
+                  <div className="absolute right-3 top-3">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  </div>
+                )}
+                {suggestions.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 ring-1 ring-black ring-opacity-5 overflow-auto">
+                    {suggestions.map((s, idx) => (
+                      <div
+                        key={idx}
+                        className="cursor-pointer py-2 px-3 hover:bg-blue-600 hover:text-white text-black text-sm"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectSuggestion(s)}
+                      >
+                        {s.displayName}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
