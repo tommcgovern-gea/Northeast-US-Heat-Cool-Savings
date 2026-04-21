@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
 import { sql } from '@/lib/db/client';
+import { messageService } from '@/lib/services/messageService';
 
 function toRows(result: any): any[] {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -100,6 +101,36 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching messages:', error);
     return NextResponse.json(
       { message: 'Error fetching messages' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const user = verifyToken(token) as TokenPayload;
+    if (!user || user.role !== 'ADMIN') {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const messageId = body?.messageId as string | undefined;
+    if (!messageId) {
+      return NextResponse.json({ message: 'messageId is required' }, { status: 400 });
+    }
+
+    const result = await messageService.sendMessageById(messageId);
+    return NextResponse.json(result, { status: result.success ? 200 : 422 });
+  } catch (error) {
+    console.error('Error retrying message:', error);
+    return NextResponse.json(
+      { message: 'Error retrying message' },
       { status: 500 }
     );
   }

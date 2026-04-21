@@ -23,6 +23,87 @@ export interface MessageResult {
 }
 
 export class MessageService {
+  private async deliverMessage(msg: any): Promise<boolean> {
+    let success = false;
+    let deliveryStatus = "pending";
+
+    let email: string | null = null;
+    let phone: string | null = null;
+    if (msg.user_id) {
+      const userResult = await sql`SELECT * FROM users WHERE id = ${msg.user_id}`;
+      const u = toRows(userResult)[0];
+      if (u) {
+        email = u.email;
+        phone = u.phone;
+      }
+    } else if (msg.recipient_id) {
+      const recipientResult = await sql`SELECT * FROM recipients WHERE id = ${msg.recipient_id}`;
+      const r = toRows(recipientResult)[0];
+      if (r) {
+        email = r.email;
+        phone = r.phone;
+      }
+    }
+
+    if (msg.channel === "sms" && phone) {
+      const maxSmsLen = 160;
+      const urlMatch = msg.content.match(/https?:\/\/[^\s]+/);
+      const uploadUrl = urlMatch ? urlMatch[0].replace(/[.)]\s*$/, "") : "";
+      let smsBody: string;
+      if (
+        uploadUrl &&
+        (msg.message_type === "daily_summary" || msg.message_type === "alert")
+      ) {
+        const withPrefix = `Upload: ${uploadUrl}`;
+        smsBody =
+          withPrefix.length <= maxSmsLen
+            ? withPrefix
+            : uploadUrl.length <= maxSmsLen
+              ? uploadUrl
+              : "Check email for upload link.";
+      } else {
+        smsBody =
+          msg.content.length <= maxSmsLen
+            ? msg.content
+            : msg.content.slice(0, maxSmsLen - 3) + "…";
+      }
+      const smsResult = await sendSMS(phone, smsBody);
+      success = smsResult.success;
+      deliveryStatus = success
+        ? "delivered"
+        : smsResult.error
+          ? `failed: ${smsResult.error}`.slice(0, 50)
+          : "failed";
+      if (!success && smsResult.error) {
+        console.error(`SMS failed to ${phone}:`, smsResult.error);
+      }
+    }
+
+    if (msg.channel === "email" && email) {
+      const subject =
+        msg.message_type === "alert"
+          ? "Temperature Alert - Action Required"
+          : msg.message_type === "warning"
+            ? "Compliance Warning"
+            : "Daily Temperature Summary";
+      const emailResult = await sendEmail({
+        to: email,
+        subject,
+        text: msg.content,
+      });
+      success = emailResult.success;
+      deliveryStatus = success ? "delivered" : "failed";
+    }
+
+    await sql`
+      UPDATE messages
+      SET delivered = ${success}, delivery_status = ${deliveryStatus}, sent_at = NOW()
+      WHERE id = ${msg.id}
+    `;
+
+    return success;
+  }
+
   async generateUploadToken(
     messageId: string,
     buildingId: string,
@@ -56,8 +137,8 @@ export class MessageService {
               ? content.replace("__UPLOAD_URL__", uploadUrl)
               : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
           await sql`
-            INSERT INTO messages (id, alert_log_id, building_id, user_id, message_type, channel, content, delivered, created_at)
-            VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.userId}, ${item.messageType}, ${channel}, ${content}, false, NOW())
+            INSERT INTO messages (id, alert_log_id, building_id, user_id, message_type, channel, content, delivered, sent_at, created_at)
+            VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.userId}, ${item.messageType}, ${channel}, ${content}, false, NOW(), NOW())
           `;
           messageIds.push(messageId);
         }
@@ -80,8 +161,8 @@ export class MessageService {
               ? content.replace("__UPLOAD_URL__", uploadUrl)
               : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
           await sql`
-            INSERT INTO messages (id, alert_log_id, building_id, recipient_id, message_type, channel, content, delivered, created_at)
-            VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.recipientId}, ${item.messageType}, ${channel}, ${content}, false, NOW())
+            INSERT INTO messages (id, alert_log_id, building_id, recipient_id, message_type, channel, content, delivered, sent_at, created_at)
+            VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.recipientId}, ${item.messageType}, ${channel}, ${content}, false, NOW(), NOW())
           `;
           messageIds.push(messageId);
         }
@@ -110,88 +191,7 @@ export class MessageService {
 
     for (const msg of messages) {
       try {
-        let success = false;
-        let deliveryStatus = "pending";
-        let error: string | undefined;
-
-        let email: string | null = null;
-        let phone: string | null = null;
-        if (msg.user_id) {
-          const userResult =
-            await sql`SELECT * FROM users WHERE id = ${msg.user_id}`;
-          const u = toRows(userResult)[0];
-          if (u) {
-            email = u.email;
-            phone = u.phone;
-          }
-        } else if (msg.recipient_id) {
-          const recipientResult =
-            await sql`SELECT * FROM recipients WHERE id = ${msg.recipient_id}`;
-          const r = toRows(recipientResult)[0];
-          if (r) {
-            email = r.email;
-            phone = r.phone;
-          }
-        }
-
-        if (msg.channel === "sms" && phone) {
-          // Twilio trial (error 30044) limits SMS length; keep under 160 chars. Prefer including upload URL.
-          const maxSmsLen = 160;
-          const urlMatch = msg.content.match(/https?:\/\/[^\s]+/);
-          const uploadUrl = urlMatch ? urlMatch[0].replace(/[.)]\s*$/, "") : "";
-          let smsBody: string;
-          if (
-            uploadUrl &&
-            (msg.message_type === "daily_summary" ||
-              msg.message_type === "alert")
-          ) {
-            const withPrefix = `Upload: ${uploadUrl}`;
-            smsBody =
-              withPrefix.length <= maxSmsLen
-                ? withPrefix
-                : uploadUrl.length <= maxSmsLen
-                  ? uploadUrl
-                  : "Check email for upload link.";
-          } else {
-            smsBody =
-              msg.content.length <= maxSmsLen
-                ? msg.content
-                : msg.content.slice(0, maxSmsLen - 3) + "…";
-          }
-          const smsResult = await sendSMS(phone, smsBody);
-          success = smsResult.success;
-          deliveryStatus = success
-            ? "delivered"
-            : smsResult.error
-              ? `failed: ${smsResult.error}`.slice(0, 50)
-              : "failed";
-          error = smsResult.error;
-          if (!success && smsResult.error) {
-            console.error(`SMS failed to ${phone}:`, smsResult.error);
-          }
-        }
-        if (msg.channel === "email" && email) {
-          const subject =
-            msg.message_type === "alert"
-              ? "Temperature Alert - Action Required"
-              : msg.message_type === "warning"
-                ? "Compliance Warning"
-                : "Daily Temperature Summary";
-          const emailResult = await sendEmail({
-            to: email,
-            subject,
-            text: msg.content,
-          });
-          success = emailResult.success;
-          deliveryStatus = success ? "delivered" : "failed";
-          error = emailResult.error;
-        }
-
-        await sql`
-          UPDATE messages 
-          SET delivered = ${success}, delivery_status = ${deliveryStatus}, sent_at = NOW()
-          WHERE id = ${msg.id}
-        `;
+        const success = await this.deliverMessage(msg);
 
         if (success) {
           sent++;
@@ -212,6 +212,16 @@ export class MessageService {
       sent,
       failed,
     };
+  }
+
+  async sendMessageById(messageId: string): Promise<{ success: boolean; message?: string }> {
+    const result = await sql`SELECT * FROM messages WHERE id = ${messageId} LIMIT 1`;
+    const msg = toRows(result)[0];
+    if (!msg) {
+      return { success: false, message: "Message not found" };
+    }
+    const success = await this.deliverMessage(msg);
+    return { success, message: success ? "Message delivered" : "Message delivery failed" };
   }
 
   async createMessagesFromAlert(

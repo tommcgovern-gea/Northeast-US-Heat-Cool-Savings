@@ -54,7 +54,7 @@ export async function PATCH(
   }
 }
 
-/** DELETE /api/admin/staff/[id] — delete staff user (admin only). */
+/** DELETE /api/admin/staff/[id] — deactivate staff user (admin only). */
 export async function DELETE(
   req: NextRequest,
   props: { params: Promise<{ id: string }> }
@@ -71,8 +71,8 @@ export async function DELETE(
     if (user.role !== "STAFF") {
       return NextResponse.json({ message: "User is not a staff member" }, { status: 400 });
     }
-    const deleted = await db.deleteUser(id);
-    return deleted
+    const updated = await db.updateUser(id, { is_active: false });
+    return updated
       ? NextResponse.json({ message: "Staff deleted" })
       : NextResponse.json({ message: "Delete failed" }, { status: 500 });
   } catch (error) {

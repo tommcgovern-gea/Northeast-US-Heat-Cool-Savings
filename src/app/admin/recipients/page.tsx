@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { Toast } from "@/components/Toast";
 
 interface Recipient {
   id: string;
@@ -51,6 +52,9 @@ export default function RecipientsPage() {
   const [selectedExistingUserId, setSelectedExistingUserId] = useState<string>('');
   const [deleteTarget, setDeleteTarget] = useState<Recipient | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [createModalError, setCreateModalError] = useState("");
+  const [editModalError, setEditModalError] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBuildings();
@@ -176,10 +180,15 @@ export default function RecipientsPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRecipient) return;
+    setEditModalError("");
 
     const ids = formData.buildingIds.length > 0 ? formData.buildingIds : editBuildingIds;
     if (ids.length === 0) {
-      setError("Select at least one building");
+      setEditModalError("Please select at least one building.");
+      return;
+    }
+    if (formData.phone && !/^\+?[1-9]\d{9,14}$/.test(formData.phone.replace(/[\s\-().]/g, ""))) {
+      setEditModalError("Invalid phone number. Use format: +12223334444");
       return;
     }
 
@@ -211,9 +220,10 @@ export default function RecipientsPage() {
       setShowEditModal(false);
       setEditingRecipient(null);
       setFormData({ name: "", email: "", phone: "", preference: "email", buildingId: "", buildingIds: [], password: "", confirmPassword: "" });
+      setToast("Recipient updated successfully.");
       fetchRecipients();
     } catch (err: any) {
-      setError(err.message);
+      setEditModalError(err.message);
     } finally {
       setUpdateLoading(false);
     }
@@ -246,10 +256,10 @@ export default function RecipientsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setCreateModalError("");
     const ids = formData.buildingIds.length > 0 ? formData.buildingIds : (formData.buildingId ? [formData.buildingId] : []);
     if (ids.length === 0) {
-      setError("Please select at least one building");
+      setCreateModalError("Please select at least one building.");
       return;
     }
 
@@ -271,19 +281,23 @@ export default function RecipientsPage() {
       preference = user.preference || "email";
     } else {
       if (!formData.email && !formData.phone) {
-        setError("Email or phone is required");
+        setCreateModalError("Email or phone is required.");
+        return;
+      }
+      if (formData.phone && !/^\+?[1-9]\d{9,14}$/.test(formData.phone.replace(/[\s\-().]/g, ""))) {
+        setCreateModalError("Invalid phone number. Use format: +12223334444");
         return;
       }
       if (formData.password && formData.password !== formData.confirmPassword) {
-        setError("Passwords do not match");
+        setCreateModalError("Passwords do not match.");
         return;
       }
       if (formData.password && formData.password.length < 6) {
-        setError("Password must be at least 6 characters");
+        setCreateModalError("Password must be at least 6 characters.");
         return;
       }
       if (formData.password && !formData.email?.trim()) {
-        setError("Email is required when setting building portal password");
+        setCreateModalError("Email is required when setting building portal password.");
         return;
       }
     }
@@ -321,9 +335,10 @@ export default function RecipientsPage() {
       setFormData({ name: "", email: "", phone: "", preference: "email", buildingId: "", buildingIds: [], password: "", confirmPassword: "" });
       setAddRecipientTab("new");
       setSelectedExistingUserId("");
+      setToast("Recipient added successfully.");
       fetchRecipients();
     } catch (err: any) {
-      setError(err.message);
+      setCreateModalError(err.message);
     } finally {
       setCreateLoading(false);
     }
@@ -351,7 +366,7 @@ export default function RecipientsPage() {
           <select
             value={selectedBuilding}
             onChange={(e) => setSelectedBuilding(e.target.value)}
-            className="w-48 border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="max-w-[220px] border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 truncate"
           >
             <option value="">Select building</option>
             {buildings.map((building) => (
@@ -414,6 +429,19 @@ export default function RecipientsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
+              {recipients.length === 0 && !recipientsLoading && selectedBuilding && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
+                    No recipients for this building yet —{" "}
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="text-blue-600 hover:underline font-medium"
+                    >
+                      click here to add one
+                    </button>
+                  </td>
+                </tr>
+              )}
               {recipients.map((recipient) => (
                 <tr key={recipient.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -484,6 +512,11 @@ export default function RecipientsPage() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Add Recipient
                   </h3>
+                  {createModalError && (
+                    <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-800">
+                      {createModalError}
+                    </div>
+                  )}
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-800 mb-1">
@@ -671,6 +704,11 @@ export default function RecipientsPage() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Edit Recipient
                   </h3>
+                  {editModalError && (
+                    <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-800">
+                      {editModalError}
+                    </div>
+                  )}
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-800 mb-1">Name</label>
@@ -748,6 +786,8 @@ export default function RecipientsPage() {
         variant="danger"
         loading={deleteLoading}
       />
+
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }

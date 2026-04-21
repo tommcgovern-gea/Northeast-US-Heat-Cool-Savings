@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { Toast } from "@/components/Toast";
 
 const VARIABLE_HELP = [
   {
@@ -78,6 +79,7 @@ export default function TemplatesPage() {
   });
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCities();
@@ -173,6 +175,7 @@ export default function TemplatesPage() {
       }
 
       setEditingTemplate(null);
+      setToast("Template saved successfully.");
       fetchTemplates();
     } catch (err: any) {
       setError(err.message);
@@ -273,7 +276,7 @@ export default function TemplatesPage() {
             onChange={(e) => setSelectedCity(e.target.value)}
             className="border border-gray-300 rounded-md shadow-sm py-2 px-3 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 min-w-[180px]"
           >
-            <option value="">Select a city</option>
+            <option value="" disabled>Select a city</option>
             {cities.map((city) => (
               <option key={city.id} value={city.id}>
                 {city.name}, {city.state}
@@ -438,6 +441,8 @@ export default function TemplatesPage() {
         variant="danger"
         loading={deleteLoading}
       />
+
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }

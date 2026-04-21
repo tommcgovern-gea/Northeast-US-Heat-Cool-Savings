@@ -28,3 +28,17 @@ body {
 input, select, textarea {
   color: #111827;
 }
+
+button,
+a,
+[role="button"],
+select,
+label[for],
+input[type="checkbox"],
+input[type="radio"],
+input[type="file"],
+th[onclick],
+td[onclick],
+[data-clickable] {
+  cursor: pointer;
+}

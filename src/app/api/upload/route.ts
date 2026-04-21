@@ -103,8 +103,8 @@ export async function POST(req: NextRequest) {
       isCompliant,
       hoursSinceMessage: Math.round(hoursSinceMessage * 10) / 10,
       message: isCompliant
-        ? 'File uploaded successfully and is compliant'
-        : 'File uploaded but outside compliance window',
+        ? 'File uploaded successfully and meets compliance requirements.'
+        : 'File uploaded, but it is outside the compliance window.',
     });
   } catch (error: any) {
     console.error('Error uploading file:', error);

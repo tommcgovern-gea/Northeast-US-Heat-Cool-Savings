@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db/client";
+import { db, sql } from "@/lib/db/client";
 import { verifyToken, TokenPayload } from "@/lib/auth";
 
 export const getCities = async (req: NextRequest) => {
@@ -159,6 +159,19 @@ export const createCity = async (req: NextRequest) => {
       stateCode = stateMap[stateCode] || stateCode.substring(0, 2).toUpperCase();
     } else {
       stateCode = stateCode.toUpperCase();
+    }
+
+    const dupCheck = await sql`
+      SELECT id FROM cities
+      WHERE LOWER(name) = LOWER(${body.name}) AND LOWER(state) = LOWER(${stateCode})
+        AND nws_office = ${body.nwsOffice} AND nws_grid_x = ${Number(body.nwsGridX)} AND nws_grid_y = ${Number(body.nwsGridY)}
+      LIMIT 1
+    `;
+    if (dupCheck.length > 0) {
+      return NextResponse.json(
+        { message: "A city with this name and NWS configuration already exists." },
+        { status: 409 }
+      );
     }
 
     const newCity = await db.createCity({

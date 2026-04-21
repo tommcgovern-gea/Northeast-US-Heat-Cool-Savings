@@ -466,7 +466,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Section 2: City Stats & Temperature Trends */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">
@@ -644,7 +644,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Section 3 & 4: Recent Alert Logs + Message history & upload status (one row) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">

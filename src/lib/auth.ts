@@ -23,6 +23,21 @@ export function verifyToken(token: string): TokenPayload | null {
   }
 }
 
+/**
+ * Verifies JWT and confirms the user is still active in the DB.
+ * Use in place of verifyToken for routes where session invalidation matters.
+ */
+export async function verifyTokenActive(
+  token: string,
+  getUserById: (id: string) => Promise<{ is_active?: boolean | null } | null>
+): Promise<TokenPayload | null> {
+  const payload = verifyToken(token);
+  if (!payload) return null;
+  const dbUser = await getUserById(payload.userId);
+  if (!dbUser || dbUser.is_active === false) return null;
+  return payload;
+}
+
 export function canAccessBuilding(user: TokenPayload, buildingId: string): boolean {
   if (user.role !== "BUILDING") return true;
   if (user.buildingId === buildingId) return true;

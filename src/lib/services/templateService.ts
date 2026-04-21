@@ -125,6 +125,7 @@ export class TemplateService {
     const result = await sql`
       SELECT * FROM message_templates
       WHERE city_id = ${cityId}
+        AND is_active = true
       ORDER BY template_type
     `;
 

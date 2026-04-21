@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { IconDelete, IconEdit, IconPause, IconResume, IconView } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { Toast } from "@/components/Toast";
 
 interface Building {
   id: string;
@@ -34,10 +35,17 @@ export default function BuildingsPage() {
   const [updateLoading, setUpdateLoading] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const isOpen = showCreateModal || showEditModal;
+    document.body.style.overflow = isOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [showCreateModal, showEditModal]);
 
   const fetchData = async () => {
     try {
@@ -75,23 +83,31 @@ export default function BuildingsPage() {
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
-
       const response = await fetch(`/api/buildings/${buildingId}`, {
         method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: true, isPaused: false }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to activate building");
-      }
-
+      if (!response.ok) throw new Error("Failed to activate building");
+      setToast("Building activated.");
       fetchData();
-      setShowCreateModal(false);
-      setFormData({ name: "", address: "", cityId: "" });
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeactivate = async (buildingId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const response = await fetch(`/api/buildings/${buildingId}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: false }),
+      });
+      if (!response.ok) throw new Error("Failed to deactivate building");
+      setToast("Building deactivated.");
+      fetchData();
     } catch (err: any) {
       setError(err.message);
     }
@@ -120,6 +136,7 @@ export default function BuildingsPage() {
 
       setShowCreateModal(false);
       setFormData({ name: "", address: "", cityId: "" });
+      setToast("Building created successfully.");
       fetchData();
     } catch (err: any) {
       setError(err.message);
@@ -186,6 +203,7 @@ export default function BuildingsPage() {
       setShowEditModal(false);
       setEditingBuilding(null);
       setFormData({ name: "", address: "", cityId: "" });
+      setToast("Building updated successfully.");
       fetchData();
     } catch (err: any) {
       setError(err.message);
@@ -274,80 +292,113 @@ export default function BuildingsPage() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {buildings.map((building) => (
-              <tr key={building.id}>
-                <td className="px-6 py-4">
-                  <Link
-                    href={`/admin/buildings/${building.id}`}
-                    className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline cursor-pointer"
+            {buildings.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
+                  No buildings added yet —{" "}
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="text-blue-600 hover:underline font-medium"
                   >
-                    {building.name}
-                  </Link>
-                  <div className="text-sm text-gray-800">{building.address}</div>
+                    click here to add one
+                  </button>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                  {building.cityName}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                  {building.recipientCount}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                  {building.complianceRate != null ? `${building.complianceRate.toFixed(1)}%` : "N/A"}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex space-x-2">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${building.isActive
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-800"
-                        }`}
+              </tr>
+            ) : (
+              buildings.map((building) => (
+                <tr key={building.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <Link
+                      href={`/admin/buildings/${building.id}`}
+                      className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline cursor-pointer capitalize"
                     >
-                      {building.isActive ? "Active" : "Inactive"}
-                    </span>
-                    {building.isPaused && (
+                      {building.name}
+                    </Link>
+                    <div className="text-sm text-gray-800 max-w-xs truncate capitalize">{building.address}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                    {building.cityName}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                    {building.recipientCount}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                    {building.complianceRate != null ? `${building.complianceRate.toFixed(1)}%` : "N/A"}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {building.isPaused ? (
                       <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
                         Paused
                       </span>
+                    ) : (
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          building.isActive
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {building.isActive ? "Active" : "Inactive"}
+                      </span>
                     )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <div className="flex items-center gap-1">
-                    <Link
-                      href={`/admin/buildings/${building.id}`}
-                      className="p-1.5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50"
-                      title="View"
-                    >
-                      <IconView />
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleEdit(building)}
-                      className="p-1.5 text-indigo-600 hover:text-indigo-900 rounded hover:bg-indigo-50"
-                      title="Edit"
-                    >
-                      <IconEdit />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handlePause(building.id, building.isPaused)}
-                      className="p-1.5 text-yellow-600 hover:text-yellow-900 rounded hover:bg-yellow-50"
-                      title={building.isPaused ? "Resume" : "Pause"}
-                    >
-                      {building.isPaused ? <IconResume /> : <IconPause />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteClick(building.id)}
-                      className="p-1.5 text-red-600 hover:text-red-900 rounded hover:bg-red-50"
-                      title="Delete"
-                    >
-                      <IconDelete />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/admin/buildings/${building.id}`}
+                        className="p-1.5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50"
+                        title="View"
+                      >
+                        <IconView />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(building)}
+                        className="p-1.5 text-indigo-600 hover:text-indigo-900 rounded hover:bg-indigo-50"
+                        title="Edit"
+                      >
+                        <IconEdit />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handlePause(building.id, building.isPaused)}
+                        className="p-1.5 text-yellow-600 hover:text-yellow-900 rounded hover:bg-yellow-50"
+                        title={building.isPaused ? "Resume" : "Pause"}
+                      >
+                        {building.isPaused ? <IconResume /> : <IconPause />}
+                      </button>
+                      {building.isActive ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeactivate(building.id)}
+                          className="p-1.5 text-gray-500 hover:text-gray-800 rounded hover:bg-gray-100"
+                          title="Deactivate"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleActivate(building.id)}
+                          className="p-1.5 text-green-600 hover:text-green-800 rounded hover:bg-green-50"
+                          title="Activate"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClick(building.id)}
+                        className="p-1.5 text-red-600 hover:text-red-900 rounded hover:bg-red-50"
+                        title="Delete"
+                      >
+                        <IconDelete />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -598,6 +649,8 @@ export default function BuildingsPage() {
         variant="danger"
         loading={deleteLoading}
       />
+
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }
