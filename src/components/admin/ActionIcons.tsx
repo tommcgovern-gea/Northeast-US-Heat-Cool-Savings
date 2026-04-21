@@ -53,3 +53,13 @@ export function IconResume({ title = "Resume", className = "" }: { title?: strin
     </svg>
   );
 }
+
+export function IconDeactivate({ title = "Deactivate", className = "" }: { title?: string; className?: string }) {
+  return (
+    <svg {...svgProps} className={`inline-block ${className}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <title>{title}</title>
+      <circle cx="12" cy="12" r="9" />
+      <line x1="6.5" y1="6.5" x2="17.5" y2="17.5" />
+    </svg>
+  );
+}
