@@ -41,6 +41,8 @@ export default function BuildingsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [createFormError, setCreateFormError] = useState("");
   const [editFormError, setEditFormError] = useState("");
+  const [sortKey, setSortKey] = useState<"name" | "cityName" | "recipientCount" | "complianceRate" | "status">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
     fetchData();
@@ -275,6 +277,27 @@ export default function BuildingsPage() {
   };
 
 
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) setSortDir((d) => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+
+  const sortedBuildings = [...buildings].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === "name") cmp = a.name.localeCompare(b.name);
+    else if (sortKey === "cityName") cmp = a.cityName.localeCompare(b.cityName);
+    else if (sortKey === "recipientCount") cmp = a.recipientCount - b.recipientCount;
+    else if (sortKey === "complianceRate") cmp = (a.complianceRate ?? -1) - (b.complianceRate ?? -1);
+    else if (sortKey === "status") {
+      const statusVal = (b: Building) => b.isPaused ? 1 : b.isActive ? 0 : 2;
+      cmp = statusVal(a) - statusVal(b);
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const SortIcon = ({ col }: { col: typeof sortKey }) =>
+    sortKey === col ? <span className="ml-1">{sortDir === "asc" ? "↑" : "↓"}</span> : <span className="ml-1 text-gray-300">↕</span>;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -313,20 +336,20 @@ export default function BuildingsPage() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                Building
+              <th onClick={() => toggleSort("name")} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider select-none">
+                Building<SortIcon col="name" />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                City
+              <th onClick={() => toggleSort("cityName")} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider select-none">
+                City<SortIcon col="cityName" />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                Recipients
+              <th onClick={() => toggleSort("recipientCount")} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider select-none">
+                Recipients<SortIcon col="recipientCount" />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                Compliance
+              <th onClick={() => toggleSort("complianceRate")} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider select-none">
+                Compliance<SortIcon col="complianceRate" />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                Status
+              <th onClick={() => toggleSort("status")} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider select-none">
+                Status<SortIcon col="status" />
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Actions
@@ -347,7 +370,7 @@ export default function BuildingsPage() {
                 </td>
               </tr>
             ) : (
-              buildings.map((building) => (
+              sortedBuildings.map((building) => (
                 <tr key={building.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <Link

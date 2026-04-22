@@ -42,3 +42,8 @@ td[onclick],
 [data-clickable] {
   cursor: pointer;
 }
+
+button:disabled,
+button[disabled] {
+  cursor: not-allowed;
+}

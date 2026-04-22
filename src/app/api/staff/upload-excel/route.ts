@@ -47,47 +47,63 @@ export async function POST(req: NextRequest) {
     const errors: string[] = [];
 
     if (type === 'utility') {
-      for (const row of data as any[]) {
+      const processedMonths = new Set<number>();
+      for (let i = 0; i < (data as any[]).length; i++) {
+        const row = (data as any[])[i];
         try {
           const month = parseInt(row.month || row.Month);
           const year = parseInt(row.year || row.Year);
           const totalKBTU = parseFloat(row.totalKBTU || row['Total kBTU'] || row.total_kbtu);
 
-          if (!month || !year || !totalKBTU) {
-            errors.push(`Row ${data.indexOf(row) + 2}: Missing required fields`);
+          if (isNaN(month) || isNaN(year) || isNaN(totalKBTU) || !month || !year || !totalKBTU) {
+            errors.push(`Row ${i + 2}: Missing or invalid required fields (month, year, totalKBTU)`);
             continue;
           }
 
-          const utilityData = await energyService.uploadUtilityData(
+          const rawElec = row.electricKWH ?? row['Electric (kWh)'] ?? row.electric_kwh;
+          const rawGas = row.gasTherms ?? row['Gas (therms)'] ?? row.gas_therms;
+          const rawOil = row.fuelOilGallons ?? row['Fuel Oil (gallons)'] ?? row.fuel_oil_gallons;
+          const rawSteam = row.districtSteamMBTU ?? row['District Steam (MBTU)'] ?? row.district_steam_mbtu;
+
+          await energyService.uploadUtilityData(
             buildingId!,
             month,
             year,
             {
-              electricKWH: row.electricKWH || row['Electric (kWh)'] || row.electric_kwh ? parseFloat(row.electricKWH || row['Electric (kWh)'] || row.electric_kwh) : undefined,
-              gasTherms: row.gasTherms || row['Gas (therms)'] || row.gas_therms ? parseFloat(row.gasTherms || row['Gas (therms)'] || row.gas_therms) : undefined,
-              fuelOilGallons: row.fuelOilGallons || row['Fuel Oil (gallons)'] || row.fuel_oil_gallons ? parseFloat(row.fuelOilGallons || row['Fuel Oil (gallons)'] || row.fuel_oil_gallons) : undefined,
-              districtSteamMBTU: row.districtSteamMBTU || row['District Steam (MBTU)'] || row.district_steam_mbtu ? parseFloat(row.districtSteamMBTU || row['District Steam (MBTU)'] || row.district_steam_mbtu) : undefined,
+              electricKWH: rawElec != null && rawElec !== '' ? parseFloat(rawElec) : undefined,
+              gasTherms: rawGas != null && rawGas !== '' ? parseFloat(rawGas) : undefined,
+              fuelOilGallons: rawOil != null && rawOil !== '' ? parseFloat(rawOil) : undefined,
+              districtSteamMBTU: rawSteam != null && rawSteam !== '' ? parseFloat(rawSteam) : undefined,
               totalKBTU,
             },
             uploadedBy
           );
 
-          await energyService.calculateBaseline(buildingId!, month);
+          processedMonths.add(month);
           results.push({ month, year, success: true });
         } catch (error: any) {
-          errors.push(`Row ${data.indexOf(row) + 2}: ${error.message}`);
+          errors.push(`Row ${i + 2}: ${error.message}`);
+        }
+      }
+      // Calculate baselines once per unique month after all rows processed
+      for (const month of processedMonths) {
+        try {
+          await energyService.calculateBaseline(buildingId!, month);
+        } catch {
+          // baseline calc is best-effort; don't fail the upload
         }
       }
     } else if (type === 'degree-days') {
-      for (const row of data as any[]) {
+      for (let i = 0; i < (data as any[]).length; i++) {
+        const row = (data as any[])[i];
         try {
           const month = parseInt(row.month || row.Month);
           const year = parseInt(row.year || row.Year);
           const hdd = parseFloat(row.hdd || row.HDD || row.heating_degree_days);
-          const cdd = parseFloat(row.cdd || row.CDD || row.cooling_degree_days);
+          const cdd = parseFloat(row.cdd || row.CDD || row.cooling_degree_days || 0);
 
-          if (!month || !year || hdd === undefined || cdd === undefined) {
-            errors.push(`Row ${data.indexOf(row) + 2}: Missing required fields`);
+          if (isNaN(month) || isNaN(year) || isNaN(hdd)) {
+            errors.push(`Row ${i + 2}: Missing or invalid required fields (month, year, hdd)`);
             continue;
           }
 
@@ -96,13 +112,13 @@ export async function POST(req: NextRequest) {
             month,
             year,
             hdd,
-            cdd,
+            isNaN(cdd) ? 0 : cdd,
             uploadedBy
           );
 
           results.push({ month, year, success: true });
         } catch (error: any) {
-          errors.push(`Row ${data.indexOf(row) + 2}: ${error.message}`);
+          errors.push(`Row ${i + 2}: ${error.message}`);
         }
       }
     }

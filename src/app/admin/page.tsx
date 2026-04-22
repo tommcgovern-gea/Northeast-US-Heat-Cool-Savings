@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { PaginationBar } from "@/components/PaginationBar";
 import { MessageHistoryTable } from "@/components/MessageHistoryTable";
 
@@ -324,7 +325,7 @@ export default function AdminDashboard() {
           </div>
         ) : stats ? (
           <>
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <Link href="/admin/cities" className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md hover:ring-2 hover:ring-blue-200 transition-all">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="shrink-0 bg-blue-500 rounded-md p-3">
@@ -342,8 +343,8 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            </Link>
+            <Link href="/admin/buildings" className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md hover:ring-2 hover:ring-green-200 transition-all">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="shrink-0 bg-green-500 rounded-md p-3">
@@ -367,8 +368,8 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            </Link>
+            <a href="#alert-logs" className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md hover:ring-2 hover:ring-yellow-200 transition-all">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="shrink-0 bg-yellow-500 rounded-md p-3">
@@ -390,8 +391,8 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            </a>
+            <Link href="/admin/compliance" className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md hover:ring-2 hover:ring-purple-200 transition-all">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="shrink-0 bg-purple-500 rounded-md p-3">
@@ -411,7 +412,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           </>
         ) : null}
       </div>
@@ -458,11 +459,41 @@ export default function AdminDashboard() {
               : "4. Check Compliance"}
           </button>
         </div>
-        {triggerResult && (
-          <pre className="mt-4 p-4 bg-gray-200 rounded-md border border-gray-300 text-gray-900 text-sm overflow-auto max-h-48 font-mono">
-            {triggerResult}
-          </pre>
-        )}
+        {triggerResult && (() => {
+          const isError = triggerResult.startsWith("Error:");
+          if (isError) {
+            return (
+              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm font-medium text-red-800">{triggerResult}</p>
+              </div>
+            );
+          }
+          try {
+            const data = JSON.parse(triggerResult) as Record<string, unknown>;
+            return (
+              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md space-y-1">
+                {Object.entries(data).map(([k, v]) => (
+                  <div key={k} className="flex flex-wrap gap-2 text-sm">
+                    <span className="font-medium text-gray-700 capitalize">{k.replace(/_/g, " ")}:</span>
+                    <span className="text-gray-900">
+                      {Array.isArray(v)
+                        ? `[${v.length} item${v.length !== 1 ? "s" : ""}]`
+                        : typeof v === "object" && v !== null
+                        ? JSON.stringify(v)
+                        : String(v ?? "—")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          } catch {
+            return (
+              <pre className="mt-4 p-4 bg-gray-200 rounded-md border border-gray-300 text-gray-900 text-sm overflow-auto max-h-48 font-mono">
+                {triggerResult}
+              </pre>
+            );
+          }
+        })()}
       </div>
 
       {/* Section 2: City Stats & Temperature Trends */}
@@ -647,7 +678,7 @@ export default function AdminDashboard() {
 
       {/* Section 3 & 4: Recent Alert Logs + Message history & upload status (one row) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div className="bg-white shadow rounded-lg">
+        <div id="alert-logs" className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">
               Recent Alert Logs

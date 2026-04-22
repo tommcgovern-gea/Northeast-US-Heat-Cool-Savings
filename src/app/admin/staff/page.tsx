@@ -336,7 +336,7 @@ export default function StaffSignupPage() {
                   )}
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Email</label>
+                      <label className="block text-sm font-medium text-gray-700">Email <span className="text-red-500">*</span></label>
                       <input
                         type="email"
                         required
@@ -346,7 +346,7 @@ export default function StaffSignupPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Password</label>
+                      <label className="block text-sm font-medium text-gray-700">Password <span className="text-red-500">*</span></label>
                       <input
                         type="password"
                         required

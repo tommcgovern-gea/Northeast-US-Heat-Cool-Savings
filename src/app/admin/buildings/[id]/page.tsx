@@ -47,6 +47,18 @@ interface DashboardData {
   } | null;
 }
 
+interface UtilityRow {
+  id: string;
+  month: number;
+  year: number;
+  electricKWH: number | null;
+  gasTherms: number | null;
+  fuelOilGallons: number | null;
+  districtSteamMBTU: number | null;
+  totalKBTU: number;
+  uploadedAt: string;
+}
+
 export default function BuildingDetailPage() {
   const params = useParams();
   const buildingId = params?.id as string;
@@ -56,6 +68,7 @@ export default function BuildingDetailPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [messagesPage, setMessagesPage] = useState(1);
   const [messagesLimit, setMessagesLimit] = useState(10);
+  const [utilityHistory, setUtilityHistory] = useState<UtilityRow[]>([]);
 
   useEffect(() => {
     if (buildingId) {
@@ -68,18 +81,24 @@ export default function BuildingDetailPage() {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const response = await fetch(`/api/buildings/${buildingId}/dashboard`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const [dashboardRes, energyRes] = await Promise.all([
+        fetch(`/api/buildings/${buildingId}/dashboard`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`/api/buildings/${buildingId}/energy?utilityPage=1&utilityLimit=10`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch building data");
-      }
+      if (!dashboardRes.ok) throw new Error("Failed to fetch building data");
 
-      const dashboardData = await response.json();
+      const dashboardData = await dashboardRes.json();
       setData(dashboardData);
+
+      if (energyRes.ok) {
+        const energyData = await energyRes.json();
+        setUtilityHistory(energyData.utilityHistory ?? []);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -278,6 +297,53 @@ export default function BuildingDetailPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Utility Consumption History */}
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="px-4 py-5 sm:p-6">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Utility Consumption History</h2>
+          {utilityHistory.length === 0 ? (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <p className="text-sm text-gray-700">No utility data uploaded for this building yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Period</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Electric</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Gas</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Total kBTU</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Uploaded</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {utilityHistory.map((u) => (
+                    <tr key={u.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {monthNames[u.month - 1]} {u.year}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                        {u.electricKWH ? u.electricKWH.toLocaleString() + " kWh" : "—"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                        {u.gasTherms ? u.gasTherms.toLocaleString() + " therms" : "—"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {u.totalKBTU.toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                        {new Date(u.uploadedAt).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Recent Messages */}

@@ -132,7 +132,7 @@ export default function AdminLayout({
               </Link>
               <div className="hidden lg:ml-6 lg:flex lg:items-center lg:gap-x-0.5">
                 {navigation.map((item) => {
-                  const isActive = pathname === item.href;
+                  const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href + "/"));
                   const label = "short" in item && item.short ? item.short : item.name;
                   return (
                     <Link
@@ -185,7 +185,7 @@ export default function AdminLayout({
                 {user.email || `Role: ${user.role}`}
               </div>
               {navigation.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href + "/"));
                 const label = "short" in item && item.short ? item.short : item.name;
                 return (
                   <Link

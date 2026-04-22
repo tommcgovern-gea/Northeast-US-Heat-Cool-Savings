@@ -65,6 +65,8 @@ export default function BuildingDashboard() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [messagesPage, setMessagesPage] = useState(1);
   const [messagesLimit, setMessagesLimit] = useState(10);
+  const [msgSortKey, setMsgSortKey] = useState<"sentAt" | "messageType" | "deliveryStatus">("sentAt");
+  const [msgSortDir, setMsgSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -352,14 +354,28 @@ export default function BuildingDashboard() {
             Recent Messages
           </h2>
           {(() => {
-            const messagesTotal = data.messages.length;
+            const sortedMessages = [...data.messages].sort((a, b) => {
+              let cmp = 0;
+              if (msgSortKey === "sentAt") cmp = new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime();
+              else if (msgSortKey === "messageType") cmp = a.messageType.localeCompare(b.messageType);
+              else if (msgSortKey === "deliveryStatus") cmp = (a.deliveryStatus || "").localeCompare(b.deliveryStatus || "");
+              return msgSortDir === "asc" ? cmp : -cmp;
+            });
+            const messagesTotal = sortedMessages.length;
             const showMessagesPagination = messagesTotal > messagesLimit;
             const totalPages = Math.max(1, Math.ceil(messagesTotal / messagesLimit));
             const safePage = Math.min(messagesPage, totalPages);
-            const paginatedMessages = data.messages.slice(
+            const paginatedMessages = sortedMessages.slice(
               (safePage - 1) * messagesLimit,
               safePage * messagesLimit,
             );
+            const toggleSort = (key: typeof msgSortKey) => {
+              if (msgSortKey === key) setMsgSortDir((d) => d === "asc" ? "desc" : "asc");
+              else { setMsgSortKey(key); setMsgSortDir("asc"); }
+              setMessagesPage(1);
+            };
+            const SortIcon = ({ col }: { col: typeof msgSortKey }) =>
+              msgSortKey === col ? <span className="ml-1">{msgSortDir === "asc" ? "↑" : "↓"}</span> : <span className="ml-1 text-gray-300">↕</span>;
             return (
               <>
                 {showMessagesPagination && (
@@ -381,14 +397,14 @@ export default function BuildingDashboard() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                          Type
+                        <th onClick={() => toggleSort("messageType")} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider select-none">
+                          Type<SortIcon col="messageType" />
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                          Sent At
+                        <th onClick={() => toggleSort("sentAt")} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider select-none">
+                          Sent At<SortIcon col="sentAt" />
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                          Status
+                        <th onClick={() => toggleSort("deliveryStatus")} className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider select-none">
+                          Status<SortIcon col="deliveryStatus" />
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                           Upload
@@ -483,7 +499,7 @@ export default function BuildingDashboard() {
                     >
                       {upload.isCompliant ? "Compliant" : "Late"}
                     </span>
-                    {upload.fileUrl && (
+                    {upload.fileUrl ? (
                       <a
                         href={upload.fileUrl}
                         target="_blank"
@@ -492,6 +508,10 @@ export default function BuildingDashboard() {
                       >
                         View
                       </a>
+                    ) : (
+                      <span className="inline-flex items-center px-3 py-1 rounded-md bg-gray-100 text-gray-500 text-xs font-medium" title="File not available for viewing">
+                        Not available
+                      </span>
                     )}
                   </div>
                 </div>

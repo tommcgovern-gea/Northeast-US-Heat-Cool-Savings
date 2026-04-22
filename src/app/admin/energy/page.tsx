@@ -8,6 +8,8 @@ interface Building {
   name: string;
   cityId: string;
   cityName: string;
+  isActive?: boolean;
+  isPaused?: boolean;
 }
 
 interface EnergyData {
@@ -370,11 +372,19 @@ export default function EnergyPage() {
       setShowUploadModal(false);
       setExcelUploading(false);
       fileInput.value = "";
+      const processedPeriods = ((data.results ?? []) as Array<{ month: number; year: number; success: boolean }>)
+        .filter((r) => r.success)
+        .map((r) => `${monthNames[r.month - 1]} ${r.year}`)
+        .join(", ");
       const msg = data.errors?.length
-        ? `Excel upload processed ${data.processed} rows with some issues: ${data.errors.slice(0, 3).join("; ")}`
-        : `Excel upload complete. Processed ${data.processed} rows.`;
+        ? `Excel upload processed ${data.processed} rows with some issues: ${data.errors.slice(0, 3).join("; ")}${processedPeriods ? ` — periods saved: ${processedPeriods}` : ""}`
+        : `Excel upload complete. ${data.processed} row${data.processed === 1 ? "" : "s"} saved${processedPeriods ? `: ${processedPeriods}` : ""}. See the table below.`;
       setSuccessMessage(msg);
       fetchEnergyData();
+      const scrollTarget = excelType === "utility" ? "utility-history" : "degree-days-history";
+      setTimeout(() => {
+        document.getElementById(scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
     } catch (err: any) {
       setError(err.message);
       setExcelUploading(false);
@@ -478,8 +488,12 @@ export default function EnergyPage() {
   ];
 
   const eligiblePeriods = energyData?.reportEligiblePeriods ?? [];
+  const selectedBuildingObj = buildings.find((b) => b.id === selectedBuilding);
+  const isBuildingPaused = selectedBuildingObj?.isPaused === true;
+  const isBuildingInactive = selectedBuildingObj?.isActive === false;
+  const isBuildingBlocked = isBuildingPaused || isBuildingInactive;
   const canGenerateReport =
-    Boolean(selectedBuilding) && !energyLoading && eligiblePeriods.length > 0;
+    Boolean(selectedBuilding) && !energyLoading && eligiblePeriods.length > 0 && !isBuildingBlocked;
 
   return (
     <div className="space-y-8">
@@ -584,13 +598,23 @@ export default function EnergyPage() {
               </li>
             </ul>
           )}
+          {isBuildingPaused && (
+            <div className="mt-3 rounded-md bg-yellow-50 border border-yellow-200 px-3 py-2">
+              <p className="text-xs font-medium text-yellow-800">This building is currently paused. Uploads and report generation are disabled.</p>
+            </div>
+          )}
+          {isBuildingInactive && (
+            <div className="mt-3 rounded-md bg-red-50 border border-red-200 px-3 py-2">
+              <p className="text-xs font-medium text-red-800">This building is inactive. Uploads and report generation are disabled.</p>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => {
               setError("");
               setShowUploadModal(true);
             }}
-            disabled={!selectedBuilding}
+            disabled={!selectedBuilding || isBuildingBlocked}
             className="mt-4 inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             + Upload utility &amp; degree day data
@@ -662,7 +686,7 @@ export default function EnergyPage() {
         <>
           {/* Degree Days (HDD/CDD) */}
           {(energyData.degreeDaysTotal ?? 0) > 0 ? (
-            <div className="bg-white shadow rounded-lg p-6 ring-1 ring-gray-100">
+            <div id="degree-days-history" className="bg-white shadow rounded-lg p-6 ring-1 ring-gray-100">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
                 Degree days (HDD / CDD)
               </h2>
@@ -906,7 +930,7 @@ export default function EnergyPage() {
           )}
 
           {/* Utility History */}
-          <div className="bg-white shadow rounded-lg ring-1 ring-gray-100">
+          <div id="utility-history" className="bg-white shadow rounded-lg ring-1 ring-gray-100">
             <div className="px-4 py-5 sm:p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
                 Utility consumption history
@@ -1005,9 +1029,21 @@ export default function EnergyPage() {
             />
             <div className="relative z-10 w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl ring-1 ring-black/10">
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Upload utility &amp; degree day data
-                </h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    Upload utility &amp; degree day data
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowUploadModal(false)}
+                    className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    aria-label="Close"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="text-xs text-gray-700 mb-3">
                   To support baseline and savings reports, upload{" "}
                   <span className="font-semibold">utility</span> for this
@@ -1238,20 +1274,41 @@ export default function EnergyPage() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-sm font-medium text-gray-800">
-                                    Total kBTU *
-                                    <span className="ml-1 text-xs font-normal text-gray-500">(auto-calculated from above)</span>
-                                  </label>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    required
-                                    className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                    value={uploadFormData.totalKBTU}
-                                    onChange={(e) =>
-                                      setUploadFormData({ ...uploadFormData, totalKBTU: e.target.value })
-                                    }
-                                  />
+                                  {(() => {
+                                    const hasFuelData = !!(
+                                      uploadFormData.electricKWH ||
+                                      uploadFormData.gasTherms ||
+                                      uploadFormData.fuelOilGallons ||
+                                      uploadFormData.districtSteamMBTU
+                                    );
+                                    return (
+                                      <>
+                                        <label className="block text-sm font-medium text-gray-800">
+                                          Total kBTU *
+                                          <span className="ml-1 text-xs font-normal text-gray-500">
+                                            {hasFuelData ? "(auto-calculated — clear fuel fields to enter manually)" : "(enter manually or fill fuel fields above to auto-calculate)"}
+                                          </span>
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          required
+                                          readOnly={hasFuelData}
+                                          className={`mt-1 block w-full rounded-md border py-2 px-3 text-gray-900 shadow-sm focus:outline-none sm:text-sm ${
+                                            hasFuelData
+                                              ? "border-gray-200 bg-gray-100 text-gray-600 cursor-not-allowed"
+                                              : "border-gray-300 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-400"
+                                          }`}
+                                          value={uploadFormData.totalKBTU}
+                                          onChange={(e) => {
+                                            if (!hasFuelData) {
+                                              setUploadFormData({ ...uploadFormData, totalKBTU: e.target.value });
+                                            }
+                                          }}
+                                        />
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               </>
                             );
