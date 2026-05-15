@@ -541,4 +541,61 @@ export const db = {
     const result = await sql`DELETE FROM users WHERE id = ${id} RETURNING id`;
     return toRows(result).length > 0;
   },
+
+  // ── Access Codes ──────────────────────────────────────────────────────────
+
+  /** All unused access code rows (id + code hash). */
+  async getUnusedAccessCodes(): Promise<Array<{ id: number; code: string }>> {
+    const result = await sql`
+      SELECT id, code FROM access_codes WHERE status = 'unused' ORDER BY id
+    `;
+    return toRows(result) as Array<{ id: number; code: string }>;
+  },
+
+  /** Mark a code as used and record the timestamp. */
+  async markAccessCodeUsed(id: number): Promise<boolean> {
+    const result = await sql`
+      UPDATE access_codes
+      SET status = 'used', used_at = NOW()
+      WHERE id = ${id} AND status = 'unused'
+      RETURNING id
+    `;
+    return toRows(result).length > 0;
+  },
+
+  /** Compare plaintext against unused codes without marking used. */
+  async findUnusedAccessCode(
+    plainCode: string,
+  ): Promise<{ id: number } | null> {
+    const bcrypt = (await import("bcryptjs")).default;
+    const unused = await this.getUnusedAccessCodes();
+    for (const row of unused) {
+      const matches = await bcrypt.compare(plainCode, row.code);
+      if (matches) return { id: row.id };
+    }
+    return null;
+  },
+
+  async getAccessCodeById(
+    id: number,
+  ): Promise<{ id: number; status: string } | null> {
+    const result = await sql`
+      SELECT id, status FROM access_codes WHERE id = ${id}
+    `;
+    const row = toRows(result)[0] as { id: number; status: string } | undefined;
+    return row ?? null;
+  },
+
+  /**
+   * Compare plaintext against every unused code hash.
+   * Returns the matched row (and marks it used) or null.
+   */
+  async findAndUseAccessCode(
+    plainCode: string,
+  ): Promise<{ id: number } | null> {
+    const match = await this.findUnusedAccessCode(plainCode);
+    if (!match) return null;
+    const ok = await this.markAccessCodeUsed(match.id);
+    return ok ? match : null;
+  },
 };

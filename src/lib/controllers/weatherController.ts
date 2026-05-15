@@ -37,6 +37,9 @@ export async function fetchNWSHourlyForecast(
     }
 
     const data = await res.json();
+    if (process.env.NODE_ENV === "development") {
+      console.log("[NWS] full hourly response:\n", JSON.stringify(data, null, 2));
+    }
     const periods: NWSForecastPeriod[] = data.properties?.periods || [];
 
     // Take next 24 hours
