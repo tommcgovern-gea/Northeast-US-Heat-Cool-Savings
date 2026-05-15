@@ -83,6 +83,62 @@ export function verifyUploadLinkToken(token: string): { uploadId: string } | nul
   }
 }
 
+/** Short-lived token after access-code check; used during signup before user exists. */
+export function signOnboardingToken(accessCodeId: number): string {
+  return jwt.sign(
+    { accessCodeId, purpose: "onboarding" },
+    JWT_SECRET,
+    { expiresIn: "2h" },
+  );
+}
+
+export function verifyOnboardingToken(
+  token: string,
+): { accessCodeId: number } | null {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as {
+      accessCodeId?: number;
+      purpose?: string;
+    };
+    if (payload?.purpose === "onboarding" && payload.accessCodeId != null) {
+      return { accessCodeId: payload.accessCodeId };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Session token issued after a valid access-code redemption. */
+export function signAccessCodeToken(accessCodeId: number): string {
+  return jwt.sign(
+    { accessCodeId, purpose: "access-code", role: "BUILDING" as UserRole },
+    JWT_SECRET,
+    { expiresIn: "1d" },
+  );
+}
+
+export function verifyAccessCodeToken(
+  token: string,
+): { accessCodeId: number; role: UserRole } | null {
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as {
+      accessCodeId?: number;
+      purpose?: string;
+      role?: string;
+    };
+    if (payload?.purpose === "access-code" && payload?.accessCodeId != null) {
+      return {
+        accessCodeId: payload.accessCodeId,
+        role: "BUILDING",
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Short-lived token for password reset links. */
 export function signPasswordResetToken(userId: string, passwordHash: string): string {
   return jwt.sign(

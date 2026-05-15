@@ -14,14 +14,14 @@ export default function BuildingLayout({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (pathname === "/building/login") {
+    if (pathname === "/building/login" || pathname === "/building/signup") {
       setLoading(false);
       return;
     }
 
     const token = localStorage.getItem("token");
     if (!token) {
-      router.push("/building/login");
+      router.replace("/building/login");
       return;
     }
 
@@ -29,29 +29,33 @@ export default function BuildingLayout({
       const payload = JSON.parse(atob(token.split(".")[1]));
       if (payload.exp && payload.exp * 1000 < Date.now()) {
         localStorage.removeItem("token");
-        router.push("/building/login");
+        router.replace("/building/login");
         return;
       }
-      if (payload.role !== "BUILDING") {
+      const isBuildingUser =
+        payload.role === "BUILDING" && payload.userId && payload.purpose !== "access-code";
+      if (!isBuildingUser) {
         localStorage.removeItem("token");
-        router.push("/building/login");
+        router.replace("/building/login");
         return;
       }
       setUser(payload);
     } catch {
       localStorage.removeItem("token");
-      router.push("/building/login");
+      router.replace("/building/login");
     } finally {
       setLoading(false);
     }
-  }, [router, pathname]);
+  }, [pathname]);
 
-  if (pathname === "/building/login") {
+  if (pathname === "/building/login" || pathname === "/building/signup") {
     return <>{children}</>;
   }
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    sessionStorage.removeItem("onboardingToken");
+    sessionStorage.removeItem("onboardingAccessCode");
     router.push("/");
   };
 

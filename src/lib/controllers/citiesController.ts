@@ -96,29 +96,101 @@ export const getCity = async (req: NextRequest, id: string) => {
   }
 };
 
-async function validateNWSCoordinates(office: string, gridX: number, gridY: number): Promise<boolean> {
+const stateMap: Record<string, string> = {
+  Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR", California: "CA",
+  Colorado: "CO", Connecticut: "CT", Delaware: "DE", Florida: "FL", Georgia: "GA",
+  Hawaii: "HI", Idaho: "ID", Illinois: "IL", Indiana: "IN", Iowa: "IA",
+  Kansas: "KS", Kentucky: "KY", Louisiana: "LA", Maine: "ME", Maryland: "MD",
+  Massachusetts: "MA", Michigan: "MI", Minnesota: "MN", Mississippi: "MS", Missouri: "MO",
+  Montana: "MT", Nebraska: "NE", Nevada: "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+  "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", Ohio: "OH",
+  Oklahoma: "OK", Oregon: "OR", Pennsylvania: "PA", "Rhode Island": "RI", "South Carolina": "SC",
+  "South Dakota": "SD", Tennessee: "TN", Texas: "TX", Utah: "UT", Vermont: "VT",
+  Virginia: "VA", Washington: "WA", "West Virginia": "WV", Wisconsin: "WI", Wyoming: "WY",
+};
+
+export function normalizeStateCode(state: string): string {
+  const trimmed = state.trim();
+  if (trimmed.length > 2) {
+    return stateMap[trimmed] || trimmed.substring(0, 2).toUpperCase();
+  }
+  return trimmed.toUpperCase();
+}
+
+export async function validateNWSCoordinates(
+  office: string,
+  gridX: number,
+  gridY: number,
+): Promise<boolean> {
   try {
     const res = await fetch(`https://api.weather.gov/gridpoints/${office}/${gridX},${gridY}`, {
       headers: { "User-Agent": "TempAlertPortal/1.0" }
     });
     return res.ok;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
 
-const stateMap: Record<string, string> = {
-  "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
-  "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
-  "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
-  "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
-  "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
-  "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
-  "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
-  "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
-  "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
-  "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY"
+export type CitySearchSuggestion = {
+  name: string;
+  state: string;
+  nwsOffice: string;
+  nwsGridX: number;
+  nwsGridY: number;
+  displayName: string;
 };
+
+/** Geocode US city name and resolve NWS grid (shared by admin + building onboarding). */
+export async function searchCitiesByName(query: string): Promise<CitySearchSuggestion[]> {
+  const geocodeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=us&format=json&addressdetails=1&limit=5`;
+  const geoRes = await fetch(geocodeUrl, {
+    headers: { "User-Agent": "TempAlertPortal/1.0 (contact@zestgeek.com)" },
+  });
+  if (!geoRes.ok) return [];
+
+  const locations = await geoRes.json();
+  const suggestions = await Promise.all(
+    locations.map(async (loc: {
+      lat: string;
+      lon: string;
+      display_name: string;
+      address: { state?: string; state_district?: string; city?: string; town?: string; village?: string };
+    }) => {
+      try {
+        const lat = loc.lat;
+        const lon = loc.lon;
+        const stateName = loc.address.state || loc.address.state_district || "";
+        const stateCode =
+          stateMap[stateName] || (stateName.length === 2 ? stateName.toUpperCase() : "");
+        const cityName =
+          loc.address.city ||
+          loc.address.town ||
+          loc.address.village ||
+          loc.display_name.split(",")[0];
+
+        const nwsRes = await fetch(`https://api.weather.gov/points/${lat},${lon}`, {
+          headers: { "User-Agent": "TempAlertPortal/1.0" },
+        });
+        if (!nwsRes.ok) return null;
+
+        const nwsData = await nwsRes.json();
+        return {
+          name: cityName,
+          state: stateCode || stateName,
+          nwsOffice: nwsData.properties.gridId,
+          nwsGridX: nwsData.properties.gridX,
+          nwsGridY: nwsData.properties.gridY,
+          displayName: `${cityName}, ${stateCode || stateName}`,
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return suggestions.filter((s): s is CitySearchSuggestion => s !== null);
+}
 
 export const createCity = async (req: NextRequest) => {
   try {
@@ -153,13 +225,7 @@ export const createCity = async (req: NextRequest) => {
       }, { status: 400 });
     }
 
-    // Normalize state to 2 characters
-    let stateCode = body.state;
-    if (stateCode.length > 2) {
-      stateCode = stateMap[stateCode] || stateCode.substring(0, 2).toUpperCase();
-    } else {
-      stateCode = stateCode.toUpperCase();
-    }
+    const stateCode = normalizeStateCode(body.state);
 
     const dupCheck = await sql`
       SELECT id FROM cities
