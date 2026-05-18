@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { Toast } from "@/components/Toast";
+import { CLIENT_DEFAULT_TEMPLATES } from "@/lib/message-template-defaults";
 
 const VARIABLE_HELP = [
   {
@@ -236,12 +237,10 @@ export default function TemplatesPage() {
   };
 
   const getDefaultTemplate = (type: string): string => {
-    const defaults: Record<string, string> = {
-      alert: `⚠️ SUDDEN TEMPERATURE ALERT\n\nTemperature is expected to change by {{temperatureChange}}°F in the next {{timeWindow}} hours ({{currentTemp}}°F → {{futureTemp}}°F).\n\nPlease adjust heating/cooling settings accordingly.\n\nUpload photo or BMS record: {{uploadUrl}}`,
-      daily_summary: `📊 Daily Temperature Summary\n\nAverage: {{averageTemp}}°F\nHigh: {{maxTemp}}°F\nLow: {{minTemp}}°F\nChange from yesterday: {{temperatureChange}}°F\n\nPlease confirm your settings adjustment.\n\nUpload photo or BMS record: {{uploadUrl}}`,
-      warning: `⚠️ COMPLIANCE WARNING\n\nYou have not uploaded compliance documentation (photo or BMS record) for the message sent {{hoursAgo}} hours ago.\n\nPlease upload immediately. Failure to comply may void your guarantee.\n\nUpload link: {{uploadUrl}}`,
-    };
-    return defaults[type] || "";
+    if (type in CLIENT_DEFAULT_TEMPLATES) {
+      return CLIENT_DEFAULT_TEMPLATES[type as keyof typeof CLIENT_DEFAULT_TEMPLATES];
+    }
+    return "";
   };
 
   if (loading) {
@@ -253,9 +252,12 @@ export default function TemplatesPage() {
   }
 
   const templateTypes = [
-    { value: "alert", label: "Alert", icon: "⚠️" },
-    { value: "daily_summary", label: "Daily Summary", icon: "📊" },
-    { value: "warning", label: "Warning", icon: "🔔" },
+    { value: "daily_summary_stable", label: "Daily — No change", icon: "✓" },
+    { value: "daily_summary_increase", label: "Daily — Increasing", icon: "📈" },
+    { value: "daily_summary_decrease", label: "Daily — Decreasing", icon: "📉" },
+    { value: "alert_increase", label: "Sudden alert — Increasing", icon: "⚠️" },
+    { value: "alert_decrease", label: "Sudden alert — Decreasing", icon: "⚠️" },
+    { value: "warning", label: "Compliance warning", icon: "🔔" },
   ];
 
   return (

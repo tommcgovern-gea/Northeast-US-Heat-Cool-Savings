@@ -5,6 +5,13 @@ import { messageService } from "@/lib/services/messageService";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
+export type AlertRunFilter = {
+  cityId?: string;
+  buildingId?: string;
+  userId?: string;
+  email?: string;
+};
+
 function verifyCronSecret(req: NextRequest): boolean {
   if (!CRON_SECRET) {
     // Allow manual runs from authenticated admin trigger route in dev/staging
@@ -16,14 +23,48 @@ function verifyCronSecret(req: NextRequest): boolean {
   return headerSecret === CRON_SECRET || bearerSecret === CRON_SECRET;
 }
 
-export const checkAlerts = async (req: NextRequest) => {
+function filterFromRequest(req: NextRequest): AlertRunFilter {
+  const p = req.nextUrl.searchParams;
+  return {
+    cityId: p.get("cityId") || undefined,
+    buildingId: p.get("buildingId") || undefined,
+    userId: p.get("userId") || undefined,
+    email: p.get("email") || undefined,
+  };
+}
+
+async function resolveRunFilter(
+  filter: AlertRunFilter,
+): Promise<AlertRunFilter> {
+  const out = { ...filter };
+  if (out.userId && !out.buildingId) {
+    const user = await db.getUserById(out.userId);
+    const ids = (user?.building_ids || []) as string[];
+    if (ids.length > 0) out.buildingId = ids[0];
+    if (user?.email && !out.email) out.email = user.email;
+  }
+  if (out.buildingId && !out.cityId) {
+    const b = await db.getBuildings(undefined, out.buildingId);
+    if (b.length > 0) out.cityId = b[0].city_id;
+  }
+  return out;
+}
+
+export const checkAlerts = async (
+  req: NextRequest,
+  runFilter?: AlertRunFilter,
+) => {
   try {
     if (!verifyCronSecret(req)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const cities = await db.getCities();
-    const activeCities = cities.filter((c) => c.is_active);
+    const filter = await resolveRunFilter({ ...filterFromRequest(req), ...runFilter });
+    let cities = await db.getCities();
+    let activeCities = cities.filter((c) => c.is_active);
+    if (filter.cityId) {
+      activeCities = activeCities.filter((c) => c.id === filter.cityId);
+    }
     
     const citiesChecked: string[] = [];
     let alertsFired = 0;
@@ -38,7 +79,11 @@ export const checkAlerts = async (req: NextRequest) => {
       if (result && result.shouldAlert) {
         const alertLog = await alertService.processCityAlerts(city.id);
         if (alertLog) {
-          await messageService.createMessagesFromAlert(alertLog.id, city.id);
+          await messageService.createMessagesFromAlert(alertLog.id, city.id, {
+            buildingId: filter.buildingId,
+            userId: filter.userId,
+            email: filter.email,
+          });
           alertIds.push(alertLog.id);
           alertsByCity.push(city.name);
         }
@@ -72,14 +117,21 @@ export const checkAlerts = async (req: NextRequest) => {
   }
 };
 
-export const dailySummary = async (req: NextRequest) => {
+export const dailySummary = async (
+  req: NextRequest,
+  runFilter?: AlertRunFilter,
+) => {
   try {
     if (!verifyCronSecret(req)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const cities = await db.getCities();
-    const activeCities = cities.filter((c) => c.is_active);
+    const filter = await resolveRunFilter({ ...filterFromRequest(req), ...runFilter });
+    let cities = await db.getCities();
+    let activeCities = cities.filter((c) => c.is_active);
+    if (filter.cityId) {
+      activeCities = activeCities.filter((c) => c.id === filter.cityId);
+    }
     
     const citiesProcessed: string[] = [];
     const summariesByCity: string[] = [];
@@ -104,7 +156,15 @@ export const dailySummary = async (req: NextRequest) => {
           processed: false,
         });
         
-        const ids = await messageService.createMessagesFromAlert(alertLog.id, city.id);
+        const ids = await messageService.createMessagesFromAlert(
+          alertLog.id,
+          city.id,
+          {
+            buildingId: filter.buildingId,
+            userId: filter.userId,
+            email: filter.email,
+          },
+        );
         queuedMessages += ids.length;
         summariesByCity.push(city.name);
       }

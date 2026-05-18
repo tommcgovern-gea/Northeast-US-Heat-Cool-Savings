@@ -14,7 +14,10 @@ $$ LANGUAGE plpgsql;
 CREATE TABLE IF NOT EXISTS message_templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   city_id UUID NOT NULL REFERENCES cities(id) ON DELETE CASCADE,
-  template_type VARCHAR(20) NOT NULL CHECK (template_type IN ('alert', 'daily_summary', 'warning')),
+  template_type VARCHAR(32) NOT NULL CHECK (template_type IN (
+    'daily_summary_stable', 'daily_summary_increase', 'daily_summary_decrease',
+    'alert_increase', 'alert_decrease', 'warning', 'alert', 'daily_summary'
+  )),
   subject VARCHAR(200),
   content TEXT NOT NULL,
   variables JSONB,

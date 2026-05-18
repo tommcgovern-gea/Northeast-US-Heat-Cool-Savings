@@ -1,6 +1,20 @@
 import { neon } from '@neondatabase/serverless';
 
-const client = neon(process.env.POSTGRES_URL || '');
+function getDatabaseUrl(): string {
+  const url =
+    process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    '';
+  if (!url.trim()) {
+    throw new Error(
+      'POSTGRES_URL is not set. Add it to .env in the project root and restart `npm run dev`.',
+    );
+  }
+  return url;
+}
+
+const client = neon(getDatabaseUrl());
 export const sql = client;
 
 /** Neon returns rows array directly; normalize for .rows or array. */
