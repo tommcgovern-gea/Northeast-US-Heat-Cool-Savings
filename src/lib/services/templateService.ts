@@ -1,10 +1,31 @@
 import { sql, toRows } from '@/lib/db/client';
-import { db } from '@/lib/db/client';
+import {
+  CLIENT_DEFAULT_TEMPLATES,
+  type AnyTemplateType,
+  type MessageTemplateType,
+  type TemplateVariables,
+} from '@/lib/message-template-defaults';
+
+export {
+  MESSAGE_TEMPLATE_TYPES,
+  CLIENT_DEFAULT_TEMPLATES,
+  LEGACY_TEMPLATE_TYPES,
+  isMessageTemplateType,
+  resolveTemplateType,
+  messageTypeForAlert,
+  emailSubjectForTemplate,
+} from '@/lib/message-template-defaults';
+
+export type {
+  MessageTemplateType,
+  AnyTemplateType,
+  TemplateVariables,
+} from '@/lib/message-template-defaults';
 
 export interface MessageTemplate {
   id: string;
   city_id: string;
-  template_type: 'alert' | 'daily_summary' | 'warning';
+  template_type: AnyTemplateType;
   subject: string | null;
   content: string;
   variables: any;
@@ -13,23 +34,10 @@ export interface MessageTemplate {
   updated_at: string;
 }
 
-export interface TemplateVariables {
-  temperatureChange?: number;
-  timeWindow?: number;
-  currentTemp?: number;
-  futureTemp?: number;
-  averageTemp?: number;
-  minTemp?: number;
-  maxTemp?: number;
-  cityName?: string;
-  buildingName?: string;
-  uploadUrl?: string;
-}
-
 export class TemplateService {
   async getTemplateByCityAndType(
     cityId: string,
-    templateType: 'alert' | 'daily_summary' | 'warning'
+    templateType: AnyTemplateType,
   ): Promise<MessageTemplate | null> {
     const result = await sql`
       SELECT * FROM message_templates
@@ -41,7 +49,7 @@ export class TemplateService {
     return (rows[0] as MessageTemplate) ?? null;
   }
 
-  async getTemplate(cityId: string, templateType: 'alert' | 'daily_summary' | 'warning'): Promise<MessageTemplate | null> {
+  async getTemplate(cityId: string, templateType: MessageTemplateType): Promise<MessageTemplate | null> {
     try {
       const result = await sql`
         SELECT * FROM message_templates
@@ -57,41 +65,40 @@ export class TemplateService {
     }
   }
 
-  async getDefaultTemplate(templateType: 'alert' | 'daily_summary' | 'warning'): Promise<string> {
-    const defaults = {
-      alert: `⚠️ SUDDEN TEMPERATURE ALERT\n\n` +
-        `Temperature is expected to change by {{temperatureChange}}°F ` +
-        `in the next {{timeWindow}} hours ` +
-        `({{currentTemp}}°F → {{futureTemp}}°F).\n\n` +
-        `Please adjust heating/cooling settings accordingly.\n\n` +
-        `Upload photo or BMS record: {{uploadUrl}}`,
-      
-      daily_summary: `📊 Daily Temperature Summary\n\n` +
-        `Average: {{averageTemp}}°F\n` +
-        `High: {{maxTemp}}°F\n` +
-        `Low: {{minTemp}}°F\n` +
-        `Change from yesterday: {{temperatureChange}}°F\n\n` +
-        `Please confirm your settings adjustment.\n\n` +
-        `Upload photo or BMS record: {{uploadUrl}}`,
-      
-      warning: `⚠️ COMPLIANCE WARNING\n\n` +
-        `You have not uploaded compliance documentation (photo or BMS record) for the message sent {{hoursAgo}} hours ago.\n\n` +
-        `Please upload immediately. Failure to comply may void your guarantee.\n\n` +
-        `Upload link: {{uploadUrl}}`,
-    };
+  async resolveTemplateContent(
+    cityId: string,
+    templateType: MessageTemplateType,
+  ): Promise<string> {
+    const custom = await this.getTemplate(cityId, templateType);
+    if (custom?.content) {
+      return custom.content;
+    }
 
-    return defaults[templateType] || '';
+    if (templateType.startsWith('alert_')) {
+      const legacy = await this.getTemplateByCityAndType(cityId, 'alert');
+      if (legacy?.content) return legacy.content;
+    }
+    if (templateType.startsWith('daily_summary_')) {
+      const legacy = await this.getTemplateByCityAndType(cityId, 'daily_summary');
+      if (legacy?.content) return legacy.content;
+    }
+
+    return this.getDefaultTemplate(templateType);
+  }
+
+  async getDefaultTemplate(templateType: MessageTemplateType): Promise<string> {
+    return CLIENT_DEFAULT_TEMPLATES[templateType] ?? '';
   }
 
   async renderTemplate(
     template: string,
-    variables: TemplateVariables
+    variables: TemplateVariables,
   ): Promise<string> {
     let rendered = template;
 
     Object.entries(variables).forEach(([key, value]) => {
       const placeholder = `{{${key}}}`;
-      rendered = rendered.replace(new RegExp(placeholder, 'g'), String(value || ''));
+      rendered = rendered.replace(new RegExp(placeholder, 'g'), String(value ?? ''));
     });
 
     return rendered;
@@ -99,10 +106,10 @@ export class TemplateService {
 
   async createOrUpdateTemplate(
     cityId: string,
-    templateType: 'alert' | 'daily_summary' | 'warning',
+    templateType: AnyTemplateType,
     content: string,
     subject?: string,
-    variables?: any
+    variables?: any,
   ): Promise<MessageTemplate> {
     const existing = await this.getTemplateByCityAndType(cityId, templateType);
 
@@ -118,7 +125,7 @@ export class TemplateService {
         RETURNING *
       `;
       return toRows(result)[0] as MessageTemplate;
-    } else {
+    }
       const result = await sql`
         INSERT INTO message_templates (
           city_id, template_type, subject, content, variables, is_active
@@ -133,7 +140,6 @@ export class TemplateService {
         RETURNING *
       `;
       return toRows(result)[0] as MessageTemplate;
-    }
   }
 
   async getCityTemplates(cityId: string): Promise<MessageTemplate[]> {

@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local CSV exports (access codes / credentials) — do not commit
+/scripts/output/

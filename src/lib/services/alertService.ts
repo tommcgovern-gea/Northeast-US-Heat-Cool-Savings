@@ -132,7 +132,8 @@ export class AlertService {
         temperature_data: {
           currentTemp: result.currentTemp,
           futureTemp: result.futureTemp,
-          change: result.temperatureChange,
+          change: result.futureTemp - result.currentTemp,
+          changeAbs: result.temperatureChange,
           timeWindow: result.timeWindow,
         },
         threshold_used: {

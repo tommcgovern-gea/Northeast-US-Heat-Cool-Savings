@@ -1,7 +1,12 @@
 import { db, sql, toRows } from "@/lib/db/client";
 import { sendSMS } from "./smsService";
 import { sendEmail } from "./emailService";
-import { templateService, TemplateVariables } from "./templateService";
+import {
+  templateService,
+  TemplateVariables,
+  resolveTemplateType,
+  messageTypeForAlert,
+} from "./templateService";
 import crypto from "crypto";
 
 /** Queue item: userId = BUILDING user (users table). recipientId kept for backward compat when sending old messages. */
@@ -20,6 +25,19 @@ export interface MessageResult {
   channel: "email" | "sms";
   success: boolean;
   error?: string;
+}
+
+function inferEmailSubject(content: string, messageType: string): string {
+  if (messageType === "warning") return "Compliance Warning";
+  const lower = (content || "").toLowerCase();
+  if (lower.includes("special temperature setting alert")) {
+    return "Special Temperature Setting Alert";
+  }
+  if (lower.includes("daily temperature setting message")) {
+    return "Daily Temperature Setting Message";
+  }
+  if (messageType === "alert") return "Special Temperature Setting Alert";
+  return "Daily Temperature Setting Message";
 }
 
 export class MessageService {
@@ -80,12 +98,7 @@ export class MessageService {
     }
 
     if (msg.channel === "email" && email) {
-      const subject =
-        msg.message_type === "alert"
-          ? "Temperature Alert - Action Required"
-          : msg.message_type === "warning"
-            ? "Compliance Warning"
-            : "Daily Temperature Summary";
+      const subject = inferEmailSubject(msg.content, msg.message_type);
       const emailResult = await sendEmail({
         to: email,
         subject,
@@ -227,6 +240,11 @@ export class MessageService {
   async createMessagesFromAlert(
     alertLogId: string,
     cityId: string,
+    filter?: {
+      buildingId?: string;
+      userId?: string;
+      email?: string;
+    },
   ): Promise<string[]> {
     const alertLogResult = await sql`
       SELECT * FROM alert_logs WHERE id = ${alertLogId}
@@ -235,27 +253,39 @@ export class MessageService {
     if (alertLogRows.length === 0) return [];
 
     const alert = alertLogRows[0];
-    const buildings = await db.getBuildings(cityId);
-    const activeBuildings = buildings.filter(
-      (b) => b.is_active && !b.is_paused,
-    );
+    let buildings = await db.getBuildings(cityId);
+    let activeBuildings = buildings.filter((b) => b.is_active && !b.is_paused);
+    if (filter?.buildingId) {
+      activeBuildings = activeBuildings.filter((b) => b.id === filter.buildingId);
+    }
 
+    const emailNorm = filter?.email?.trim().toLowerCase();
     const messageItems: MessageQueueItem[] = [];
 
     for (const building of activeBuildings) {
       const buildingUsers = await db.getBuildingUsers(building.id);
       const buildingRecipients = await db.getRecipients(building.id);
 
-      const messageType =
-        alert.alert_type === "sudden_fluctuation" ? "alert" : "daily_summary";
-      const tempData = alert.temperature_data;
+      const tempData = alert.temperature_data ?? {};
       const city = await db.getCityById(cityId);
-      let template = await templateService.getTemplate(cityId, messageType);
-      let templateContent =
-        template?.content ??
-        (await templateService.getDefaultTemplate(messageType));
+      const stableThreshold = Number(city?.alert_temp_delta ?? 2);
+      const templateType = resolveTemplateType(
+        alert.alert_type,
+        tempData,
+        stableThreshold,
+      );
+      const messageType = messageTypeForAlert(alert.alert_type);
+      const templateContent = await templateService.resolveTemplateContent(
+        cityId,
+        templateType,
+      );
+      const signedChange =
+        tempData.change ??
+        (tempData.futureTemp != null && tempData.currentTemp != null
+          ? Number(tempData.futureTemp) - Number(tempData.currentTemp)
+          : tempData.temperatureChange);
       const variables: TemplateVariables = {
-        temperatureChange: tempData.change || tempData.temperatureChange,
+        temperatureChange: signedChange,
         timeWindow: tempData.timeWindow,
         currentTemp: tempData.currentTemp,
         futureTemp: tempData.futureTemp,
@@ -273,6 +303,8 @@ export class MessageService {
 
       for (const u of buildingUsers) {
         if (!u.is_active) continue;
+        if (filter?.userId && u.id !== filter.userId) continue;
+        if (emailNorm && (u.email || "").toLowerCase() !== emailNorm) continue;
         messageItems.push({
           alertLogId,
           buildingId: building.id,
@@ -283,6 +315,8 @@ export class MessageService {
       }
       for (const r of buildingRecipients) {
         if (!r.is_active) continue;
+        if (filter?.userId) continue;
+        if (emailNorm && (r.email || "").toLowerCase() !== emailNorm) continue;
         messageItems.push({
           alertLogId,
           buildingId: building.id,

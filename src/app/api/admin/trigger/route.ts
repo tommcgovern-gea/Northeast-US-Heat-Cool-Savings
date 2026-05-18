@@ -25,17 +25,23 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const action = body.action || req.nextUrl.searchParams.get("action");
+  const runFilter = {
+    cityId: body.cityId || body.city_id || undefined,
+    buildingId: body.buildingId || body.building_id || undefined,
+    userId: body.userId || body.user_id || undefined,
+    email: body.email || undefined,
+  };
 
   const cronReq = withCronSecret(req);
 
   try {
     switch (action) {
       case "check-alerts":
-        return await checkAlerts(cronReq);
+        return await checkAlerts(cronReq, runFilter);
       case "send-pending":
         return await sendPendingMessages(cronReq);
       case "daily-summary": {
-        const res = await dailySummary(cronReq);
+        const res = await dailySummary(cronReq, runFilter);
         return res;
       }
       case "check-compliance": {
@@ -44,7 +50,7 @@ export async function POST(req: NextRequest) {
       }
       default:
         return NextResponse.json(
-          { message: "Invalid action. Use: check-alerts | send-pending | daily-summary | check-compliance" },
+          { message: "Invalid action. Use: check-alerts | send-pending | daily-summary | check-compliance. Optional body: cityId, buildingId, userId, email (limit recipients)." },
           { status: 400 }
         );
     }

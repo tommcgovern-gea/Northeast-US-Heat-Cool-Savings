@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, TokenPayload } from '@/lib/auth';
-import { templateService } from '@/lib/services/templateService';
+import { templateService, MESSAGE_TEMPLATE_TYPES } from '@/lib/services/templateService';
 
 export async function GET(req: NextRequest) {
   try {
@@ -69,9 +69,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!['alert', 'daily_summary', 'warning'].includes(templateType)) {
+    const allowed: string[] = [...MESSAGE_TEMPLATE_TYPES, 'alert', 'daily_summary'];
+    if (!allowed.includes(templateType)) {
       return NextResponse.json(
-        { message: 'Invalid templateType' },
+        { message: `Invalid templateType. Allowed: ${allowed.join(', ')}` },
         { status: 400 }
       );
     }
@@ -97,8 +98,14 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating/updating template:', error);
+    const detail = error instanceof Error ? error.message : String(error);
+    const hint =
+      detail.includes('message_templates_template_type_check') ||
+      detail.includes('value too long')
+        ? ' Run: npx tsx -r dotenv/config scripts/migrate-message-template-types-run.ts'
+        : '';
     return NextResponse.json(
-      { message: 'Error creating/updating template' },
+      { message: `Error creating/updating template: ${detail}${hint}` },
       { status: 500 }
     );
   }
