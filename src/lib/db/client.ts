@@ -581,10 +581,21 @@ export const db = {
   async findUnusedAccessCode(
     plainCode: string,
   ): Promise<{ id: number } | null> {
+    const trimmed = plainCode.trim();
+    if (!trimmed) return null;
+
+    const exact = await sql`
+      SELECT id FROM access_codes
+      WHERE status = 'unused' AND plain_code = ${trimmed}
+      LIMIT 1
+    `;
+    const exactRow = toRows(exact)[0] as { id: number } | undefined;
+    if (exactRow) return { id: exactRow.id };
+
     const bcrypt = (await import("bcryptjs")).default;
     const unused = await this.getUnusedAccessCodes();
     for (const row of unused) {
-      const matches = await bcrypt.compare(plainCode, row.code);
+      const matches = await bcrypt.compare(trimmed, row.code);
       if (matches) return { id: row.id };
     }
     return null;
