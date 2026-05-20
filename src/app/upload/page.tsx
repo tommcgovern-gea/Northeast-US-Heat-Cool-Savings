@@ -1,16 +1,19 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 function UploadContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [status, setStatus] = useState<"idle" | "loading" | "valid" | "invalid" | "uploading" | "done" | "error">("idle");
   const [buildingName, setBuildingName] = useState("");
   const [messageType, setMessageType] = useState("");
+  const [selectedFileName, setSelectedFileName] = useState("");
+  const [formError, setFormError] = useState("");
   const [result, setResult] = useState<{ success: boolean; isCompliant?: boolean; message?: string } | null>(null);
 
   useEffect(() => {
@@ -36,17 +39,17 @@ function UploadContent() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!token) return;
-    const form = e.currentTarget;
-    const fileInput = form.querySelector('input[type="file"]') as HTMLInputElement;
-    if (!fileInput?.files?.[0]) {
-      setResult({ success: false, message: "Please select a photo or BMS record (image, Excel, or PDF)" });
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) {
+      setFormError("Please choose a photo or BMS record (image, Excel, or PDF) first.");
       return;
     }
+    setFormError("");
     setStatus("uploading");
     try {
       const fd = new FormData();
       fd.append("token", token);
-      fd.append("file", fileInput.files[0]);
+      fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -121,13 +124,41 @@ function UploadContent() {
         )}
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Photo or BMS trending record (image, Excel, or PDF, max 10MB)</label>
+            <label htmlFor="compliance-file" className="block text-sm font-medium text-gray-700">
+              Photo or BMS trending record (image, Excel, or PDF, max 10MB)
+            </label>
             <input
+              id="compliance-file"
+              ref={fileInputRef}
               type="file"
-              accept="image/*,.pdf,.xlsx,.xls"
+              accept="image/*,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.pdf,.xlsx,.xls"
               required
-              className="mt-2 block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700"
+              className="sr-only"
+              onChange={(e) => {
+                const name = e.target.files?.[0]?.name ?? "";
+                setSelectedFileName(name);
+                setFormError("");
+              }}
             />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-3 w-full inline-flex justify-center py-3 px-4 border border-blue-300 rounded-md shadow-sm text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Choose file
+            </button>
+            {selectedFileName ? (
+              <p className="mt-2 text-sm text-gray-600">
+                Selected: <span className="font-medium text-gray-900">{selectedFileName}</span>
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-gray-500">No file selected yet</p>
+            )}
+            {formError ? (
+              <p className="mt-2 text-sm text-red-600" role="alert">
+                {formError}
+              </p>
+            ) : null}
           </div>
           <button
             type="submit"

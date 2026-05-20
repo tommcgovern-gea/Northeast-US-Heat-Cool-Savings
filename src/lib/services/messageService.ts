@@ -9,6 +9,10 @@ import {
 } from "./templateService";
 import crypto from "crypto";
 
+function appBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+}
+
 /** Queue item: userId = BUILDING user (users table). recipientId kept for backward compat when sending old messages. */
 export interface MessageQueueItem {
   alertLogId: string;
@@ -142,7 +146,7 @@ export class MessageService {
           if (target.phone) channels.push("sms");
         for (const channel of channels) {
           const messageId = crypto.randomUUID();
-          const uploadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`;
+          const uploadUrl = `${appBaseUrl()}/upload?token=${messageId}`;
           const needsUploadLink = item.messageType !== "warning";
           let content = item.content;
           if (needsUploadLink)
@@ -166,7 +170,7 @@ export class MessageService {
           if (target.phone) channels.push("sms");
         for (const channel of channels) {
           const messageId = crypto.randomUUID();
-          const uploadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${messageId}`;
+          const uploadUrl = `${appBaseUrl()}/upload?token=${messageId}`;
           const needsUploadLink = item.messageType !== "warning";
           let content = item.content;
           if (needsUploadLink)
