@@ -13,7 +13,7 @@ function appBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-/** Queue item: userId = BUILDING user (users table). recipientId kept for backward compat when sending old messages. */
+/** Queue item: recipientId = contacts in recipients table (cron targets). userId kept for older messages. */
 export interface MessageQueueItem {
   alertLogId: string;
   buildingId: string;
@@ -267,7 +267,6 @@ export class MessageService {
     const messageItems: MessageQueueItem[] = [];
 
     for (const building of activeBuildings) {
-      const buildingUsers = await db.getBuildingUsers(building.id);
       const buildingRecipients = await db.getRecipients(building.id);
 
       const tempData = alert.temperature_data ?? {};
@@ -305,21 +304,14 @@ export class MessageService {
         variables,
       );
 
-      for (const u of buildingUsers) {
-        if (!u.is_active) continue;
-        if (filter?.userId && u.id !== filter.userId) continue;
-        if (emailNorm && (u.email || "").toLowerCase() !== emailNorm) continue;
-        messageItems.push({
-          alertLogId,
-          buildingId: building.id,
-          userId: u.id,
-          messageType,
-          content,
-        });
-      }
       for (const r of buildingRecipients) {
         if (!r.is_active) continue;
-        if (filter?.userId) continue;
+        if (filter?.userId) {
+          const u = await db.getUserById(filter.userId);
+          if (!u?.email || (r.email || "").toLowerCase() !== u.email.toLowerCase()) {
+            continue;
+          }
+        }
         if (emailNorm && (r.email || "").toLowerCase() !== emailNorm) continue;
         messageItems.push({
           alertLogId,

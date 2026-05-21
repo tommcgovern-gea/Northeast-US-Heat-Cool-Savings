@@ -1,6 +1,6 @@
-import { NextRequest } from "next/server";
-import { listBuildings } from "@/lib/controllers/buildingOnboardingController";
+import { NextResponse } from "next/server";
 
-export async function GET(req: NextRequest) {
-  return listBuildings(req);
+/** Building onboarding no longer lists preloaded buildings. */
+export async function GET() {
+  return NextResponse.json({ message: "Not available" }, { status: 404 });
 }

@@ -21,7 +21,7 @@ type PortalShellProps = {
   children: React.ReactNode;
   backHref?: string;
   backLabel?: string;
-  title: string;
+  title?: string;
   subtitle?: string;
   maxWidth?: "md" | "lg";
   footer?: React.ReactNode;
@@ -29,7 +29,7 @@ type PortalShellProps = {
 
 export function PortalShell({
   children,
-  backHref = "/",
+  backHref,
   backLabel = "Back to home",
   title,
   subtitle,
@@ -40,13 +40,15 @@ export function PortalShell({
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
-      <header className="px-4 pt-6 sm:px-6">
-        <Link
-          href={backHref}
-          className="text-sm text-blue-600 hover:text-blue-500"
-        >
-          ← {backLabel}
-        </Link>
+      <header className="px-4 pt-6 sm:px-6 min-h-[2rem]">
+        {backHref ? (
+          <Link
+            href={backHref}
+            className="text-sm text-blue-600 hover:text-blue-500"
+          >
+            ← {backLabel}
+          </Link>
+        ) : null}
       </header>
 
       <main

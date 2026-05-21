@@ -14,7 +14,11 @@ export default function BuildingLayout({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (pathname === "/building/login" || pathname === "/building/signup") {
+    if (
+      pathname === "/building/login" ||
+      pathname === "/building/access" ||
+      pathname === "/building/signup"
+    ) {
       setLoading(false);
       return;
     }
@@ -48,7 +52,11 @@ export default function BuildingLayout({
     }
   }, [pathname]);
 
-  if (pathname === "/building/login" || pathname === "/building/signup") {
+  if (
+    pathname === "/building/login" ||
+    pathname === "/building/access" ||
+    pathname === "/building/signup"
+  ) {
     return <>{children}</>;
   }
 

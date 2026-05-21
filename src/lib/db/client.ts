@@ -41,6 +41,7 @@ export interface Building {
   city_id: string;
   name: string;
   address: string;
+  zip_code?: string | null;
   is_active: boolean;
   is_paused: boolean;
   created_at: string;
@@ -185,11 +186,14 @@ export const db = {
   },
 
   async createBuilding(
-    data: Omit<Building, "id" | "created_at" | "updated_at">,
+    data: Omit<Building, "id" | "created_at" | "updated_at"> & {
+      zip_code?: string | null;
+    },
   ): Promise<Building> {
+    const zip = data.zip_code?.trim() || null;
     const result = await sql`
-      INSERT INTO buildings (city_id, name, address, is_active, is_paused)
-      VALUES (${data.city_id}, ${data.name}, ${data.address}, ${data.is_active}, ${data.is_paused})
+      INSERT INTO buildings (city_id, name, address, zip_code, is_active, is_paused)
+      VALUES (${data.city_id}, ${data.name}, ${data.address}, ${zip}, ${data.is_active}, ${data.is_paused})
       RETURNING *
     `;
     return toRows(result)[0] as Building;
@@ -264,6 +268,42 @@ export const db = {
       RETURNING *
     `;
     return toRows(result)[0] as Recipient;
+  },
+
+  /** Portal/admin building contact for cron email/SMS (one row per building + email). */
+  async upsertRecipientForBuilding(data: {
+    buildingId: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    preference: "email" | "sms" | "both";
+  }): Promise<Recipient> {
+    const email = data.email.trim();
+    const existing = await sql`
+      SELECT id FROM recipients
+      WHERE building_id = ${data.buildingId}
+        AND email IS NOT NULL
+        AND LOWER(TRIM(email)) = LOWER(${email})
+      LIMIT 1
+    `;
+    const row = toRows(existing)[0] as { id: string } | undefined;
+    if (row) {
+      const updated = await this.updateRecipient(row.id, {
+        name: data.name,
+        phone: data.phone,
+        preference: data.preference,
+        is_active: true,
+      });
+      return updated as Recipient;
+    }
+    return this.createRecipient({
+      building_id: data.buildingId,
+      name: data.name,
+      email,
+      phone: data.phone,
+      preference: data.preference,
+      is_active: true,
+    });
   },
 
   async updateRecipient(
@@ -387,6 +427,12 @@ export const db = {
     role: "ADMIN" | "STAFF" | "BUILDING";
     building_ids?: string[] | null;
     name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    company_name?: string | null;
+    reserve_1?: string | null;
+    reserve_2?: string | null;
+    reserve_3?: string | null;
     phone?: string | null;
     preference?: "email" | "sms" | "both";
     is_active?: boolean;
@@ -396,13 +442,23 @@ export const db = {
         ? data.building_ids
         : [];
     const result = await sql`
-      INSERT INTO users (email, password_hash, role, building_ids, name, phone, preference, is_active)
+      INSERT INTO users (
+        email, password_hash, role, building_ids, name,
+        first_name, last_name, company_name, reserve_1, reserve_2, reserve_3,
+        phone, preference, is_active
+      )
       VALUES (
         ${data.email},
         ${data.password_hash},
         ${data.role},
         ${ids},
         ${data.name ?? null},
+        ${data.first_name ?? null},
+        ${data.last_name ?? null},
+        ${data.company_name ?? null},
+        ${data.reserve_1 ?? null},
+        ${data.reserve_2 ?? null},
+        ${data.reserve_3 ?? null},
         ${data.phone ?? null},
         ${data.preference ?? "email"},
         ${data.is_active ?? true}
@@ -480,6 +536,12 @@ export const db = {
     id: string,
     data: {
       name?: string | null;
+      first_name?: string | null;
+      last_name?: string | null;
+      company_name?: string | null;
+      reserve_1?: string | null;
+      reserve_2?: string | null;
+      reserve_3?: string | null;
       email?: string;
       phone?: string | null;
       preference?: string;
@@ -491,6 +553,18 @@ export const db = {
     if (!user) return null;
 
     const name = data.name !== undefined ? data.name : user.name;
+    const first_name =
+      data.first_name !== undefined ? data.first_name : user.first_name;
+    const last_name =
+      data.last_name !== undefined ? data.last_name : user.last_name;
+    const company_name =
+      data.company_name !== undefined ? data.company_name : user.company_name;
+    const reserve_1 =
+      data.reserve_1 !== undefined ? data.reserve_1 : user.reserve_1;
+    const reserve_2 =
+      data.reserve_2 !== undefined ? data.reserve_2 : user.reserve_2;
+    const reserve_3 =
+      data.reserve_3 !== undefined ? data.reserve_3 : user.reserve_3;
     const email = data.email !== undefined ? data.email : user.email;
     const phone = data.phone !== undefined ? data.phone : user.phone;
     const preference =
@@ -512,7 +586,17 @@ export const db = {
 
     const result = await sql`
       UPDATE users
-      SET name = ${name}, email = ${email}, phone = ${phone}, preference = ${preference}, is_active = ${is_active},
+      SET name = ${name},
+          first_name = ${first_name ?? null},
+          last_name = ${last_name ?? null},
+          company_name = ${company_name ?? null},
+          reserve_1 = ${reserve_1 ?? null},
+          reserve_2 = ${reserve_2 ?? null},
+          reserve_3 = ${reserve_3 ?? null},
+          email = ${email},
+          phone = ${phone},
+          preference = ${preference},
+          is_active = ${is_active},
           building_ids = ${arrLiteral}::uuid[],
           updated_at = NOW()
       WHERE id = ${id}
