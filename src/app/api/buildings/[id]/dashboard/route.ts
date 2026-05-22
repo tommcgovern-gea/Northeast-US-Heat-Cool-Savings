@@ -136,7 +136,7 @@ export async function GET(
       recentUploads: recentUploadsRows.map((upload: any) => ({
         id: upload.id,
         fileName: upload.file_name,
-        fileUrl: upload.file_url,
+        // file served via /api/photo-uploads/:id/file (private blob)
         uploadedAt: upload.uploaded_at,
         isCompliant: upload.is_compliant,
         messageType: upload.message_type,

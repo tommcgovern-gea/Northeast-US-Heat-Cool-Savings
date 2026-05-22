@@ -3,10 +3,10 @@ import bcrypt from "bcryptjs";
 import { db, sql, toRows } from "@/lib/db/client";
 import { signToken, verifyOnboardingToken } from "@/lib/auth";
 import {
-  normalizeStateCode,
-  searchCitiesByName,
-  validateNWSCoordinates,
-} from "@/lib/controllers/citiesController";
+  resolveCityForSignup,
+  type CitySignupSelection,
+} from "@/lib/building-onboarding";
+import { searchCitiesByName } from "@/lib/controllers/citiesController";
 
 function getOnboardingToken(req: NextRequest): { accessCodeId: number } | null {
   const authHeader = req.headers.get("authorization");
@@ -16,26 +16,6 @@ function getOnboardingToken(req: NextRequest): { accessCodeId: number } | null {
 
 const normalizeBuildingText = (value: string): string =>
   value.trim().replace(/\s+/g, " ");
-
-export async function listCities(req: NextRequest) {
-  const session = getOnboardingToken(req);
-  if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
-
-  const cities = await db.getCities();
-  const active = (Array.isArray(cities) ? cities : []).filter((c) => c.is_active);
-  return NextResponse.json(
-    active.map((city) => ({
-      id: city.id,
-      name: city.name,
-      state: city.state,
-      nwsOffice: city.nws_office,
-      nwsGridX: city.nws_grid_x,
-      nwsGridY: city.nws_grid_y,
-    })),
-  );
-}
 
 export async function searchCities(req: NextRequest) {
   const session = getOnboardingToken(req);
@@ -57,95 +37,26 @@ export async function searchCities(req: NextRequest) {
   return NextResponse.json(unique);
 }
 
-export async function createCityOnboarding(req: NextRequest) {
-  const session = getOnboardingToken(req);
-  if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await req.json();
+function parseCitySelection(body: Record<string, unknown>): CitySignupSelection | null {
+  const raw = body.citySelection;
+  if (!raw || typeof raw !== "object") return null;
+  const c = raw as Record<string, unknown>;
   if (
-    !body.name ||
-    !body.state ||
-    !body.nwsOffice ||
-    body.nwsGridX === undefined ||
-    body.nwsGridY === undefined
+    typeof c.name !== "string" ||
+    typeof c.state !== "string" ||
+    typeof c.nwsOffice !== "string" ||
+    c.nwsGridX === undefined ||
+    c.nwsGridY === undefined
   ) {
-    return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
+    return null;
   }
-
-  const stateCode = normalizeStateCode(body.state);
-  const isValidNWS = await validateNWSCoordinates(
-    body.nwsOffice,
-    Number(body.nwsGridX),
-    Number(body.nwsGridY),
-  );
-  if (!isValidNWS) {
-    return NextResponse.json(
-      {
-        message:
-          "Invalid NWS coordinates. Search a city name to auto-fill weather fields.",
-      },
-      { status: 400 },
-    );
-  }
-
-  const dupCheck = await sql`
-    SELECT id, name, state FROM cities
-    WHERE LOWER(name) = LOWER(${body.name}) AND LOWER(state) = LOWER(${stateCode})
-      AND nws_office = ${body.nwsOffice}
-      AND nws_grid_x = ${Number(body.nwsGridX)}
-      AND nws_grid_y = ${Number(body.nwsGridY)}
-    LIMIT 1
-  `;
-  const existing = toRows(dupCheck)[0] as { id: string; name: string; state: string } | undefined;
-  if (existing) {
-    return NextResponse.json({
-      id: existing.id,
-      name: existing.name,
-      state: existing.state,
-      existing: true,
-    });
-  }
-
-  const newCity = await db.createCity({
-    name: body.name,
-    state: stateCode,
-    nws_office: body.nwsOffice,
-    nws_grid_x: Number(body.nwsGridX),
-    nws_grid_y: Number(body.nwsGridY),
-    alert_temp_delta: body.alertTempDelta ?? 5,
-    alert_window_hours: body.alertWindowHours ?? 6,
-    is_active: true,
-  });
-
-  return NextResponse.json(
-    { id: newCity.id, name: newCity.name, state: newCity.state, existing: false },
-    { status: 201 },
-  );
-}
-
-export async function listBuildings(req: NextRequest) {
-  const session = getOnboardingToken(req);
-  if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
-
-  const cityId = req.nextUrl.searchParams.get("cityId");
-  if (!cityId) {
-    return NextResponse.json({ message: "cityId is required" }, { status: 400 });
-  }
-
-  const buildings = await db.getBuildings(cityId);
-  return NextResponse.json(
-    buildings.map((b) => ({
-      id: b.id,
-      name: b.name,
-      address: b.address,
-      cityId: b.city_id,
-      isActive: b.is_active,
-    })),
-  );
+  return {
+    name: c.name.trim(),
+    state: c.state.trim(),
+    nwsOffice: c.nwsOffice.trim(),
+    nwsGridX: Number(c.nwsGridX),
+    nwsGridY: Number(c.nwsGridY),
+  };
 }
 
 export async function completeOnboarding(req: NextRequest) {
@@ -157,27 +68,89 @@ export async function completeOnboarding(req: NextRequest) {
   const body = await req.json();
   const accessCode =
     typeof body.accessCode === "string" ? body.accessCode.trim() : "";
-  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const firstName =
+    typeof body.firstName === "string" ? body.firstName.trim() : "";
+  const lastName =
+    typeof body.lastName === "string" ? body.lastName.trim() : "";
+  const companyName =
+    typeof body.companyName === "string" ? body.companyName.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const phone =
     typeof body.phone === "string" ? body.phone.trim() || null : null;
+  const buildingAddress =
+    typeof body.buildingAddress === "string"
+      ? body.buildingAddress.trim()
+      : "";
+  const city =
+    typeof body.city === "string" ? body.city.trim() : "";
+  const zipCode =
+    typeof body.zipCode === "string" ? body.zipCode.trim() : "";
+  const password =
+    typeof body.password === "string" ? body.password : "";
   const preference = ["email", "sms", "both"].includes(body.preference)
     ? body.preference
     : "email";
+  const reserve1 =
+    typeof body.reserve1 === "string" ? body.reserve1.trim() || null : null;
+  const reserve2 =
+    typeof body.reserve2 === "string" ? body.reserve2.trim() || null : null;
+  const reserve3 =
+    typeof body.reserve3 === "string" ? body.reserve3.trim() || null : null;
 
-  if (!accessCode || !name || !email) {
+  if (!accessCode || !firstName || !lastName || !email || !password) {
     return NextResponse.json(
-      { message: "Access code, name, and email are required" },
+      { message: "Access code, name, email, and password are required" },
       { status: 400 },
     );
   }
 
-  if (!body.cityId && !body.newCity) {
-    return NextResponse.json({ message: "City is required" }, { status: 400 });
+  if (!companyName || !buildingAddress || !city || !zipCode) {
+    return NextResponse.json(
+      {
+        message:
+          "Company name, building address, city, and zip code are required",
+      },
+      { status: 400 },
+    );
   }
 
-  if (!body.buildingId && !body.newBuilding) {
-    return NextResponse.json({ message: "Building is required" }, { status: 400 });
+  if (password.length < 8) {
+    return NextResponse.json(
+      { message: "Password must be at least 8 characters" },
+      { status: 400 },
+    );
+  }
+
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRe.test(email)) {
+    return NextResponse.json(
+      { message: "Enter a valid email address" },
+      { status: 400 },
+    );
+  }
+
+  if (preference === "sms" || preference === "both") {
+    if (!phone) {
+      return NextResponse.json(
+        { message: "Phone number is required to receive SMS." },
+        { status: 400 },
+      );
+    }
+    const phoneRe = /^\+?[1-9]\d{9,14}$/;
+    if (!phoneRe.test(phone)) {
+      return NextResponse.json(
+        { message: "Phone must be in E.164 format (e.g. +1234567890)" },
+        { status: 400 },
+      );
+    }
+  } else if (phone) {
+    const phoneRe = /^\+?[1-9]\d{9,14}$/;
+    if (!phoneRe.test(phone)) {
+      return NextResponse.json(
+        { message: "Phone must be in E.164 format (e.g. +1234567890)" },
+        { status: 400 },
+      );
+    }
   }
 
   const codeRow = await db.getAccessCodeById(session.accessCodeId);
@@ -204,119 +177,97 @@ export async function completeOnboarding(req: NextRequest) {
     );
   }
 
-  let cityId = body.cityId as string | undefined;
-
-  if (!cityId && body.newCity) {
-    const nc = body.newCity;
-    const stateCode = normalizeStateCode(nc.state);
-    const isValidNWS = await validateNWSCoordinates(
-      nc.nwsOffice,
-      Number(nc.nwsGridX),
-      Number(nc.nwsGridY),
-    );
-    if (!isValidNWS) {
-      return NextResponse.json(
-        { message: "Invalid NWS coordinates for the new city" },
-        { status: 400 },
-      );
-    }
-
-    const dupCheck = await sql`
-      SELECT id FROM cities
-      WHERE LOWER(name) = LOWER(${nc.name}) AND LOWER(state) = LOWER(${stateCode})
-        AND nws_office = ${nc.nwsOffice}
-        AND nws_grid_x = ${Number(nc.nwsGridX)}
-        AND nws_grid_y = ${Number(nc.nwsGridY)}
-      LIMIT 1
-    `;
-    const dup = toRows(dupCheck)[0] as { id: string } | undefined;
-    if (dup) {
-      cityId = dup.id;
-    } else {
-      const created = await db.createCity({
-        name: nc.name,
-        state: stateCode,
-        nws_office: nc.nwsOffice,
-        nws_grid_x: Number(nc.nwsGridX),
-        nws_grid_y: Number(nc.nwsGridY),
-        alert_temp_delta: nc.alertTempDelta ?? 5,
-        alert_window_hours: nc.alertWindowHours ?? 6,
-        is_active: true,
-      });
-      cityId = created.id;
-    }
-  }
-
-  if (!cityId) {
-    return NextResponse.json({ message: "City could not be resolved" }, { status: 400 });
-  }
-
-  let buildingId = body.buildingId as string | undefined;
-
-  if (!buildingId && body.newBuilding) {
-    const nb = body.newBuilding;
-    const normalizedName = normalizeBuildingText(nb.name || "");
-    const normalizedAddress = normalizeBuildingText(nb.address || "");
-    if (!normalizedName || !normalizedAddress) {
-      return NextResponse.json(
-        { message: "Building name and address are required" },
-        { status: 400 },
-      );
-    }
-
-    const existing = await sql`
-      SELECT id FROM buildings
-      WHERE city_id = ${cityId}
-        AND LOWER(REGEXP_REPLACE(BTRIM(name), '\\s+', ' ', 'g')) = LOWER(${normalizedName})
-        AND LOWER(REGEXP_REPLACE(BTRIM(address), '\\s+', ' ', 'g')) = LOWER(${normalizedAddress})
-      LIMIT 1
-    `;
-    const dupB = toRows(existing)[0] as { id: string } | undefined;
-    if (dupB) {
-      buildingId = dupB.id;
-    } else {
-      const created = await db.createBuilding({
-        city_id: cityId,
-        name: normalizedName,
-        address: normalizedAddress,
-        is_active: true,
-        is_paused: false,
-      });
-      buildingId = created.id;
-    }
-  }
-
-  if (!buildingId) {
+  const citySelection = parseCitySelection(body);
+  if (!citySelection) {
     return NextResponse.json(
-      { message: "Building could not be resolved" },
+      {
+        message:
+          "Please select your city from the search results so we can load weather data.",
+      },
       { status: 400 },
     );
   }
 
-  const password_hash = await bcrypt.hash(accessCode, 10);
-  let user: any;
+  let cityId: string;
+  try {
+    cityId = await resolveCityForSignup(city, zipCode, citySelection);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "City could not be resolved";
+    return NextResponse.json({ message: msg }, { status: 400 });
+  }
+
+  const normalizedAddress = normalizeBuildingText(buildingAddress);
+  const fullAddress = `${normalizedAddress}, ${city}, ${zipCode}`;
+
+  const existingBuilding = await sql`
+    SELECT id FROM buildings
+    WHERE city_id = ${cityId}
+      AND LOWER(REGEXP_REPLACE(BTRIM(name), '\\s+', ' ', 'g')) = LOWER(${companyName})
+      AND LOWER(REGEXP_REPLACE(BTRIM(address), '\\s+', ' ', 'g')) = LOWER(${fullAddress})
+    LIMIT 1
+  `;
+  const dupB = toRows(existingBuilding)[0] as { id: string } | undefined;
+  let buildingId = dupB?.id;
+
+  if (!buildingId) {
+    const created = await db.createBuilding({
+      city_id: cityId,
+      name: companyName,
+      address: fullAddress,
+      zip_code: zipCode,
+      is_active: true,
+      is_paused: false,
+    });
+    buildingId = created.id;
+  }
+
+  const displayName = `${firstName} ${lastName}`.trim();
+  const password_hash = await bcrypt.hash(password, 10);
+  let user: { id: string; email: string };
 
   if (existingUser && existingUser.role === "BUILDING") {
     await db.addBuildingToUser(existingUser.id, buildingId);
     user =
       (await db.updateUser(existingUser.id, {
-        name,
+        name: displayName,
+        first_name: firstName,
+        last_name: lastName,
+        company_name: companyName,
+        reserve_1: reserve1,
+        reserve_2: reserve2,
+        reserve_3: reserve3,
         phone,
         preference,
       })) || existingUser;
     await sql`UPDATE users SET password_hash = ${password_hash} WHERE id = ${existingUser.id}`;
+    user = { id: existingUser.id, email: existingUser.email };
   } else {
-    user = await db.createUser({
+    const created = await db.createUser({
       email,
       password_hash,
       role: "BUILDING",
       building_ids: [buildingId],
-      name,
+      name: displayName,
+      first_name: firstName,
+      last_name: lastName,
+      company_name: companyName,
+      reserve_1: reserve1,
+      reserve_2: reserve2,
+      reserve_3: reserve3,
       phone,
       preference,
       is_active: true,
     });
+    user = { id: created.id, email: created.email };
   }
+
+  await db.upsertRecipientForBuilding({
+    buildingId,
+    name: displayName,
+    email: user.email,
+    phone,
+    preference,
+  });
 
   const marked = await db.markAccessCodeUsed(session.accessCodeId);
   if (!marked) {

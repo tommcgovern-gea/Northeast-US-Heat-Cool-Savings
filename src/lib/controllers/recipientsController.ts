@@ -135,6 +135,20 @@ export const createRecipient = async (req: NextRequest) => {
       });
     }
 
+    const pref =
+      (targetUser.preference as "email" | "sms" | "both") ||
+      (body.preference as "email" | "sms" | "both") ||
+      "email";
+    for (const bid of buildingIds) {
+      await db.upsertRecipientForBuilding({
+        buildingId: bid,
+        name: targetUser.name || body.name,
+        email: targetUser.email,
+        phone: targetUser.phone || body.phone || null,
+        preference: pref,
+      });
+    }
+
     return NextResponse.json({
       id: targetUser.id,
       name: targetUser.name,
@@ -228,6 +242,22 @@ export const updateRecipient = async (req: NextRequest, recipientId: string) => 
 
     const updated = await db.updateUser(recipientId, updateData);
     if (!updated) return NextResponse.json({ message: "Recipient not found" }, { status: 404 });
+
+    const pref =
+      (updated.preference as "email" | "sms" | "both") || "email";
+    const bids = ((updated.building_ids || []) as string[]).filter(Boolean);
+    if (updated.email) {
+      for (const bid of bids) {
+        await db.upsertRecipientForBuilding({
+          buildingId: bid,
+          name: updated.name || "",
+          email: updated.email,
+          phone: updated.phone || null,
+          preference: pref,
+        });
+      }
+    }
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,

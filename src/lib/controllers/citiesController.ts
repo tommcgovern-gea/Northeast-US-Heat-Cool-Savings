@@ -155,7 +155,13 @@ export async function searchCitiesByName(query: string): Promise<CitySearchSugge
       lat: string;
       lon: string;
       display_name: string;
-      address: { state?: string; state_district?: string; city?: string; town?: string; village?: string };
+      address: {
+        state?: string;
+        state_district?: string;
+        city?: string;
+        town?: string;
+        village?: string;
+      };
     }) => {
       try {
         const lat = loc.lat;

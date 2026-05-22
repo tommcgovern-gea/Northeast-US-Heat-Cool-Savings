@@ -67,6 +67,38 @@ export default function BuildingDashboard() {
   const [messagesLimit, setMessagesLimit] = useState(10);
   const [msgSortKey, setMsgSortKey] = useState<"sentAt" | "messageType" | "deliveryStatus">("sentAt");
   const [msgSortDir, setMsgSortDir] = useState<"asc" | "desc">("desc");
+  const [viewingUploadId, setViewingUploadId] = useState<string | null>(null);
+
+  const openUpload = async (uploadId: string) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setViewingUploadId(uploadId);
+    const tab = window.open("", "_blank");
+    try {
+      const res = await fetch(`/api/photo-uploads/${uploadId}/file`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { message?: string }).message || "Could not open file",
+        );
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      if (tab) {
+        tab.location.href = objectUrl;
+      } else {
+        window.open(objectUrl, "_blank", "noopener,noreferrer");
+      }
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (e: unknown) {
+      tab?.close();
+      alert(e instanceof Error ? e.message : "Could not open file");
+    } finally {
+      setViewingUploadId(null);
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -157,9 +189,9 @@ export default function BuildingDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Building name/address with filter on the right */}
+      {/* Building header + compact stats (same row, no extra section) */}
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold text-gray-900">{data.building.name}</h1>
           <p className="mt-1 text-sm text-gray-800">{data.building.address}</p>
           {data.building.isPaused && (
@@ -168,82 +200,47 @@ export default function BuildingDashboard() {
             </div>
           )}
         </div>
-        {buildings.length > 1 && (
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-sm font-medium text-gray-700">Building:</span>
-            <select
-              value={selectedBuildingId}
-              onChange={(e) => setSelectedBuildingId(e.target.value)}
-              className="border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500"
-            >
-              {buildings.map((b) => (
-                <option key={b.id} value={b.id}>{b.name} – {b.cityName}</option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="shrink-0 bg-green-500 rounded-md p-3">
-                <span className="text-2xl">✅</span>
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Compliance Rate
-                  </dt>
-                  <dd className="text-lg font-medium text-gray-900">
-                    {data.stats.complianceRate != null ? `${data.stats.complianceRate}%` : "N/A"}
-                  </dd>
-                </dl>
-              </div>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-green-600 text-white">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 leading-none">Compliance Rate</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums text-gray-900 leading-none">
+                {data.stats.complianceRate != null ? `${data.stats.complianceRate}%` : "N/A"}
+              </p>
             </div>
           </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="shrink-0 bg-blue-500 rounded-md p-3">
-                <span className="text-2xl">⚠️</span>
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Total Alerts
-                  </dt>
-                  <dd className="text-lg font-medium text-gray-900">
-                    {data.stats.totalAlerts}
-                  </dd>
-                </dl>
-              </div>
+          <div className="flex items-center gap-2.5 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 leading-none">Total Alerts</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums text-gray-900 leading-none">
+                {data.stats.totalAlerts}
+              </p>
             </div>
           </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="shrink-0 bg-purple-500 rounded-md p-3">
-                <span className="text-2xl">👥</span>
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Recipients
-                  </dt>
-                  <dd className="text-lg font-medium text-gray-900">
-                    {data.stats.totalRecipients}
-                  </dd>
-                </dl>
-              </div>
+          {buildings.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Building:</span>
+              <select
+                value={selectedBuildingId}
+                onChange={(e) => setSelectedBuildingId(e.target.value)}
+                className="border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500"
+              >
+                {buildings.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name} – {b.cityName}</option>
+                ))}
+              </select>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -499,20 +496,14 @@ export default function BuildingDashboard() {
                     >
                       {upload.isCompliant ? "Compliant" : "Late"}
                     </span>
-                    {upload.fileUrl ? (
-                      <a
-                        href={upload.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center px-3 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 cursor-pointer"
-                      >
-                        View
-                      </a>
-                    ) : (
-                      <span className="inline-flex items-center px-3 py-1 rounded-md bg-gray-100 text-gray-500 text-xs font-medium" title="File not available for viewing">
-                        Not available
-                      </span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => openUpload(upload.id)}
+                      disabled={viewingUploadId === upload.id}
+                      className="inline-flex items-center px-3 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 cursor-pointer disabled:opacity-50"
+                    >
+                      {viewingUploadId === upload.id ? "Opening…" : "View"}
+                    </button>
                   </div>
                 </div>
               ))}

@@ -1,13 +1,10 @@
-import { NextRequest } from "next/server";
-import {
-  createCityOnboarding,
-  listCities,
-} from "@/lib/controllers/buildingOnboardingController";
+import { NextResponse } from "next/server";
 
-export async function GET(req: NextRequest) {
-  return listCities(req);
+/** Building onboarding no longer lists preloaded cities. */
+export async function GET() {
+  return NextResponse.json({ message: "Not available" }, { status: 404 });
 }
 
-export async function POST(req: NextRequest) {
-  return createCityOnboarding(req);
+export async function POST() {
+  return NextResponse.json({ message: "Not available" }, { status: 404 });
 }
