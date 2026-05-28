@@ -26,7 +26,7 @@ function BuildingLoginContent() {
 
   useEffect(() => {
     if (searchParams.get("mode") === "signup") {
-      router.replace("/building/access");
+      router.replace("/");
     }
   }, [searchParams, router]);
 
@@ -150,7 +150,7 @@ function BuildingLoginContent() {
 
         <p className="text-center text-sm text-gray-800">
           Don&apos;t have an account?{" "}
-          <Link href="/building/access" className={linkClass}>
+          <Link href="/" className={linkClass}>
             Enter access code
           </Link>
         </p>

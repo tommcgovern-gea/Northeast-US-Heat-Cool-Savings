@@ -37,7 +37,11 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("token", data.token);
-      router.push("/admin");
+      if (data.role === "STAFF") {
+        router.push("/staff");
+      } else {
+        router.push("/admin");
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
