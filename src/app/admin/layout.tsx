@@ -50,8 +50,8 @@ export default function AdminLayout({
         router.push("/building");
         return;
       }
-      if (payload.role === "STAFF" && pathname === "/admin") {
-        router.push("/admin/energy");
+      if (payload.role === "STAFF") {
+        router.push("/staff/energy");
         return;
       }
       setUser(payload);
@@ -89,9 +89,6 @@ export default function AdminLayout({
     return null;
   }
 
-  const isAdmin = user.role === "ADMIN";
-  const isStaff = user.role === "STAFF";
-
   const adminOnlyNav = [
     { name: "Dashboard", href: "/admin", icon: "📊" },
     { name: "Cities", href: "/admin/cities", icon: "🏙️" },
@@ -104,11 +101,7 @@ export default function AdminLayout({
     { name: "Energy Reports", short: "Energy", href: "/admin/energy", icon: "⚡" },
   ];
 
-  const staffNav = [
-    { name: "Energy Reports", short: "Energy", href: "/admin/energy", icon: "⚡" },
-  ];
-
-  const navigation = isStaff ? staffNav : adminOnlyNav;
+  const navigation = adminOnlyNav;
 
   return (
     <div className="min-h-screen bg-gray-50">

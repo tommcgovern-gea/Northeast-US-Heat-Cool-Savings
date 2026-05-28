@@ -70,7 +70,7 @@ export default function BuildingSignupPage() {
     const token = sessionStorage.getItem(ONBOARDING_TOKEN_KEY);
     const code = sessionStorage.getItem(ONBOARDING_CODE_KEY);
     if (!token || !code) {
-      router.replace("/building/access");
+      router.replace("/");
       return;
     }
     onboardingTokenRef.current = token;
@@ -303,7 +303,7 @@ export default function BuildingSignupPage() {
       title="Your information"
       subtitle="Please complete all fields below."
       maxWidth="lg"
-      backHref="/building/access"
+      backHref="/"
       backLabel="Back"
     >
       {error && (
