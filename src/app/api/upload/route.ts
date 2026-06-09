@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { sql, toRows } from '@/lib/db/client';
+import { parseMessagePlainText } from '@/lib/messageContent';
+import { resolveUploadToken } from '@/lib/smsBody';
 import crypto from 'crypto';
 
 const ALLOWED_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|pdf|xlsx|xls)$/i;
@@ -142,11 +144,15 @@ export async function GET(req: NextRequest) {
   }
 
   const message = rows[0];
-  
+  const parsed = parseMessagePlainText(message.content || '');
+  const uploadToken = resolveUploadToken(message.content || '', message.id);
   return NextResponse.json({
     valid: true,
     buildingName: message.building_name || 'Building',
     messageType: message.message_type,
     sentAt: message.sent_at || message.created_at,
+    body: parsed.body || message.content || '',
+    uploadHeading: parsed.uploadHeading,
+    uploadToken,
   });
 }

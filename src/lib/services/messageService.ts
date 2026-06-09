@@ -1,6 +1,7 @@
 import { db, sql, toRows } from "@/lib/db/client";
 import { sendSMS } from "./smsService";
 import { sendEmail } from "./emailService";
+import { formatSmsBody } from "@/lib/smsBody";
 import {
   templateService,
   TemplateVariables,
@@ -68,27 +69,7 @@ export class MessageService {
     }
 
     if (msg.channel === "sms" && phone) {
-      const maxSmsLen = 160;
-      const urlMatch = msg.content.match(/https?:\/\/[^\s]+/);
-      const uploadUrl = urlMatch ? urlMatch[0].replace(/[.)]\s*$/, "") : "";
-      let smsBody: string;
-      if (
-        uploadUrl &&
-        (msg.message_type === "daily_summary" || msg.message_type === "alert")
-      ) {
-        const withPrefix = `Upload: ${uploadUrl}`;
-        smsBody =
-          withPrefix.length <= maxSmsLen
-            ? withPrefix
-            : uploadUrl.length <= maxSmsLen
-              ? uploadUrl
-              : "Check email for upload link.";
-      } else {
-        smsBody =
-          msg.content.length <= maxSmsLen
-            ? msg.content
-            : msg.content.slice(0, maxSmsLen - 3) + "…";
-      }
+      const smsBody = formatSmsBody(msg.content, msg.id);
       const smsResult = await sendSMS(phone, smsBody);
       success = smsResult.success;
       deliveryStatus = success

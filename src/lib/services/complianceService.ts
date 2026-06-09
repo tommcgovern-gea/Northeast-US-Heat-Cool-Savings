@@ -1,5 +1,6 @@
 import { db } from '@/lib/db/client';
 import { messageService } from './messageService';
+import { appBaseUrl } from '@/lib/smsBody';
 import crypto from 'crypto';
 
 /** Normalize sql result: Neon returns array; pg-style returns { rows }. */
@@ -94,7 +95,7 @@ export class ComplianceService {
       const warningContent = `⚠️ COMPLIANCE WARNING\n\n` +
         `You have not uploaded compliance documentation (photo or BMS record) for the message sent ${Math.round((Date.now() - new Date(message.sent_at).getTime()) / (1000 * 60 * 60) * 10) / 10} hours ago.\n\n` +
         `Please upload immediately. Failure to comply may void your guarantee.\n\n` +
-        `Upload link: ${process.env.NEXT_PUBLIC_APP_URL}/upload?token=${message.id}`;
+        `Upload link: ${appBaseUrl()}/upload?token=${message.id}`;
 
       const channels: ('email' | 'sms')[] = [];
       if (contact.preference === 'email' || contact.preference === 'both') if (contact.email) channels.push('email');
