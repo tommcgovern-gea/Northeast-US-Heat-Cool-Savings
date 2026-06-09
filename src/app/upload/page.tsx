@@ -157,23 +157,6 @@ function UploadContent() {
           </p>
         )}
 
-        {messageBody && (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 mb-6">
-            <p className="text-sm text-gray-900 whitespace-pre-wrap wrap-break-word">
-              {visibleBody}
-            </p>
-            {needsCollapse && (
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="mt-3 text-sm font-semibold text-blue-600 hover:text-blue-800"
-              >
-                {expanded ? "Read less" : "Read more"}
-              </button>
-            )}
-          </div>
-        )}
-
         <h2 className="text-lg font-semibold text-gray-900">{uploadHeading}</h2>
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div>
