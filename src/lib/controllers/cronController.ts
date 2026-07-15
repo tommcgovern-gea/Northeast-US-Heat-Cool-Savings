@@ -147,6 +147,8 @@ export const dailySummary = async (
           city_id: city.id,
           alert_type: 'daily_summary',
           temperature_data: {
+            currentTemp: summary.currentTemp,
+            futureTemp: summary.futureTemp,
             averageTemp: summary.averageTemp,
             minTemp: summary.minTemp,
             maxTemp: summary.maxTemp,

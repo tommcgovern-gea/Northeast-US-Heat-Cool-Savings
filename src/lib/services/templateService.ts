@@ -11,6 +11,7 @@ export {
   CLIENT_DEFAULT_TEMPLATES,
   LEGACY_TEMPLATE_TYPES,
   isMessageTemplateType,
+  resolveSeasonalInstruction,
   resolveTemplateType,
   messageTypeForAlert,
   emailSubjectForTemplate,

@@ -74,6 +74,8 @@ export class AlertService {
   }
 
   async calculateDailySummary(cityId: string): Promise<{
+    currentTemp: number;
+    futureTemp: number;
     averageTemp: number;
     minTemp: number;
     maxTemp: number;
@@ -95,6 +97,8 @@ export class AlertService {
     }
 
     const todayTemps = forecast.slice(0, 24).map(f => f.tempF);
+    const currentTemp = todayTemps[0];
+    const futureTemp = todayTemps[todayTemps.length - 1];
     const averageTemp = todayTemps.reduce((a, b) => a + b, 0) / todayTemps.length;
     const minTemp = Math.min(...todayTemps);
     const maxTemp = Math.max(...todayTemps);
@@ -107,6 +111,8 @@ export class AlertService {
     const temperatureChange = averageTemp - yesterdayAvg;
 
     return {
+      currentTemp: Math.round(currentTemp * 10) / 10,
+      futureTemp: Math.round(futureTemp * 10) / 10,
       averageTemp: Math.round(averageTemp * 10) / 10,
       minTemp: Math.round(minTemp),
       maxTemp: Math.round(maxTemp),

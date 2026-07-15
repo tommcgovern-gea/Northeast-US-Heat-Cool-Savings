@@ -583,6 +583,12 @@ export default function BuildingSignupPage() {
           </div>
         </div> */}
 
+        <div className="rounded-md bg-blue-50 border border-blue-200 p-4 mt-6">
+          <p className="text-sm font-medium text-blue-900">
+            To maintain eligibility for the savings guarantee, please upload a photo or BMS/BAS screenshot showing the updated setpoint within two hours of receiving an alert.
+          </p>
+        </div>
+
         <button
           type="submit"
           disabled={loading}

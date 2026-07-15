@@ -5,13 +5,17 @@ import { formatSmsBody } from "@/lib/smsBody";
 import {
   templateService,
   TemplateVariables,
+  resolveSeasonalInstruction,
   resolveTemplateType,
   messageTypeForAlert,
 } from "./templateService";
 import crypto from "crypto";
 
 function appBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(
+    /\/$/,
+    "",
+  );
 }
 
 /** Queue item: recipientId = contacts in recipients table (cron targets). userId kept for older messages. */
@@ -52,15 +56,23 @@ export class MessageService {
 
     let email: string | null = null;
     let phone: string | null = null;
+    let buildingName: string | null = null;
+    if (msg.building_id) {
+      const bResult = await sql`SELECT name FROM buildings WHERE id = ${msg.building_id} LIMIT 1`;
+      const bRow = toRows(bResult)[0];
+      if (bRow) buildingName = bRow.name;
+    }
     if (msg.user_id) {
-      const userResult = await sql`SELECT * FROM users WHERE id = ${msg.user_id}`;
+      const userResult =
+        await sql`SELECT * FROM users WHERE id = ${msg.user_id}`;
       const u = toRows(userResult)[0];
       if (u) {
         email = u.email;
         phone = u.phone;
       }
     } else if (msg.recipient_id) {
-      const recipientResult = await sql`SELECT * FROM recipients WHERE id = ${msg.recipient_id}`;
+      const recipientResult =
+        await sql`SELECT * FROM recipients WHERE id = ${msg.recipient_id}`;
       const r = toRows(recipientResult)[0];
       if (r) {
         email = r.email;
@@ -84,9 +96,10 @@ export class MessageService {
 
     if (msg.channel === "email" && email) {
       const subject = inferEmailSubject(msg.content, msg.message_type);
+      const fullSubject = buildingName ? `${subject} – ${buildingName}` : subject;
       const emailResult = await sendEmail({
         to: email,
-        subject,
+        subject: fullSubject,
         text: msg.content,
       });
       success = emailResult.success;
@@ -128,12 +141,9 @@ export class MessageService {
         for (const channel of channels) {
           const messageId = crypto.randomUUID();
           const uploadUrl = `${appBaseUrl()}/upload?token=${messageId}`;
-          const needsUploadLink = item.messageType !== "warning";
           let content = item.content;
-          if (needsUploadLink)
-            content = content.includes("__UPLOAD_URL__")
-              ? content.replace("__UPLOAD_URL__", uploadUrl)
-              : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
+          if (content.includes("__UPLOAD_URL__"))
+            content = content.replace("__UPLOAD_URL__", uploadUrl);
           await sql`
             INSERT INTO messages (id, alert_log_id, building_id, user_id, message_type, channel, content, delivered, sent_at, created_at)
             VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.userId}, ${item.messageType}, ${channel}, ${content}, false, NOW(), NOW())
@@ -152,12 +162,9 @@ export class MessageService {
         for (const channel of channels) {
           const messageId = crypto.randomUUID();
           const uploadUrl = `${appBaseUrl()}/upload?token=${messageId}`;
-          const needsUploadLink = item.messageType !== "warning";
           let content = item.content;
-          if (needsUploadLink)
-            content = content.includes("__UPLOAD_URL__")
-              ? content.replace("__UPLOAD_URL__", uploadUrl)
-              : `${content}\n\nUpload photo or BMS record: ${uploadUrl}`;
+          if (content.includes("__UPLOAD_URL__"))
+            content = content.replace("__UPLOAD_URL__", uploadUrl);
           await sql`
             INSERT INTO messages (id, alert_log_id, building_id, recipient_id, message_type, channel, content, delivered, sent_at, created_at)
             VALUES (${messageId}, ${item.alertLogId || null}, ${item.buildingId}, ${item.recipientId}, ${item.messageType}, ${channel}, ${content}, false, NOW(), NOW())
@@ -212,14 +219,20 @@ export class MessageService {
     };
   }
 
-  async sendMessageById(messageId: string): Promise<{ success: boolean; message?: string }> {
-    const result = await sql`SELECT * FROM messages WHERE id = ${messageId} LIMIT 1`;
+  async sendMessageById(
+    messageId: string,
+  ): Promise<{ success: boolean; message?: string }> {
+    const result =
+      await sql`SELECT * FROM messages WHERE id = ${messageId} LIMIT 1`;
     const msg = toRows(result)[0];
     if (!msg) {
       return { success: false, message: "Message not found" };
     }
     const success = await this.deliverMessage(msg);
-    return { success, message: success ? "Message delivered" : "Message delivery failed" };
+    return {
+      success,
+      message: success ? "Message delivered" : "Message delivery failed",
+    };
   }
 
   async createMessagesFromAlert(
@@ -241,7 +254,9 @@ export class MessageService {
     let buildings = await db.getBuildings(cityId);
     let activeBuildings = buildings.filter((b) => b.is_active && !b.is_paused);
     if (filter?.buildingId) {
-      activeBuildings = activeBuildings.filter((b) => b.id === filter.buildingId);
+      activeBuildings = activeBuildings.filter(
+        (b) => b.id === filter.buildingId,
+      );
     }
 
     const emailNorm = filter?.email?.trim().toLowerCase();
@@ -268,17 +283,20 @@ export class MessageService {
         (tempData.futureTemp != null && tempData.currentTemp != null
           ? Number(tempData.futureTemp) - Number(tempData.currentTemp)
           : tempData.temperatureChange);
+      const direction = Number(signedChange) >= 0 ? "increase" : "decrease";
       const variables: TemplateVariables = {
         temperatureChange: signedChange,
+        temperatureDelta: Math.abs(Number(signedChange)),
         timeWindow: tempData.timeWindow,
-        currentTemp: tempData.currentTemp,
-        futureTemp: tempData.futureTemp,
-        averageTemp: tempData.averageTemp,
-        minTemp: tempData.minTemp,
-        maxTemp: tempData.maxTemp,
+        currentTemp: tempData.currentTemp != null ? Number(tempData.currentTemp) : undefined,
+        futureTemp: tempData.futureTemp != null ? Number(tempData.futureTemp) : undefined,
+        averageTemp: tempData.averageTemp != null ? Number(tempData.averageTemp) : undefined,
+        minTemp: tempData.minTemp != null ? Number(tempData.minTemp) : undefined,
+        maxTemp: tempData.maxTemp != null ? Number(tempData.maxTemp) : undefined,
         cityName: city?.name || "",
         buildingName: building.name,
         uploadUrl: "__UPLOAD_URL__",
+        seasonalInstruction: resolveSeasonalInstruction(direction, tempData),
       };
       const content = await templateService.renderTemplate(
         templateContent,
@@ -289,7 +307,10 @@ export class MessageService {
         if (!r.is_active) continue;
         if (filter?.userId) {
           const u = await db.getUserById(filter.userId);
-          if (!u?.email || (r.email || "").toLowerCase() !== u.email.toLowerCase()) {
+          if (
+            !u?.email ||
+            (r.email || "").toLowerCase() !== u.email.toLowerCase()
+          ) {
             continue;
           }
         }

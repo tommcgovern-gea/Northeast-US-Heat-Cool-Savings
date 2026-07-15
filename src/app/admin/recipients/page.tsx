@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { IconDelete, IconEdit } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { Toast } from "@/components/Toast";
+import { PaginationBar } from "@/components/PaginationBar";
 
 interface Recipient {
   id: string;
@@ -56,19 +57,38 @@ export default function RecipientsPage() {
   const [editModalError, setEditModalError] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
+  const [recipientsPage, setRecipientsPage] = useState(1);
+  const [recipientsTotal, setRecipientsTotal] = useState(0);
+  const [recipientsLimit, setRecipientsLimit] = useState(10);
+
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [removeValue, setRemoveValue] = useState("");
+  const [removeSearching, setRemoveSearching] = useState(false);
+  const [removeResults, setRemoveResults] = useState<{
+    found: boolean;
+    matches: Array<{ email: string | null; phone: string | null; buildings: Array<{ id: string; name: string }>; userId: string }>;
+    totalBuildings: number;
+  } | null>(null);
+  const [removeConfirming, setRemoveConfirming] = useState(false);
+  const [removeDone, setRemoveDone] = useState(false);
+
   useEffect(() => {
     fetchBuildings();
   }, []);
 
   useEffect(() => {
-    if (selectedBuilding) {
-      setRecipientsLoading(true);
-      setRecipients([]);
-      fetchRecipients();
-    } else {
-      setRecipients([]);
-    }
+    setRecipientsPage(1);
+    setRecipientsLoading(true);
+    setRecipients([]);
+    fetchRecipients(1);
   }, [selectedBuilding]);
+
+  useEffect(() => {
+    if (recipientsPage > 1 || recipients.length > 0) {
+      setRecipientsLoading(true);
+      fetchRecipients();
+    }
+  }, [recipientsPage, recipientsLimit]);
 
   const fetchBuildings = async () => {
     setError("");
@@ -85,7 +105,7 @@ export default function RecipientsPage() {
       const data = await response.json();
       setBuildings(data);
       if (data.length > 0 && !selectedBuilding) {
-        setSelectedBuilding(data[0].id);
+        setSelectedBuilding("");
       }
     } catch (err: any) {
       setError(err.message);
@@ -94,23 +114,33 @@ export default function RecipientsPage() {
     }
   };
 
-  const fetchRecipients = async () => {
+  const fetchRecipients = async (pageOverride?: number) => {
     setError("");
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const response = await fetch(
-        `/api/recipients?buildingId=${selectedBuilding}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const page = pageOverride ?? recipientsPage;
+
+      const url = selectedBuilding
+        ? `/api/recipients?buildingId=${selectedBuilding}`
+        : `/api/recipients/all?page=${page}&limit=${recipientsLimit}`;
+
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (!response.ok) throw new Error("Failed to fetch recipients");
 
       const data = await response.json();
-      setRecipients(data);
+
+      if (data.items) {
+        setRecipients(data.items);
+        setRecipientsTotal(data.total);
+      } else {
+        setRecipients(data);
+        setRecipientsTotal(data.length);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -348,6 +378,54 @@ export default function RecipientsPage() {
     }
   };
 
+  const handleRemoveSearch = async () => {
+    if (!removeValue.trim()) return;
+    setRemoveSearching(true);
+    setRemoveResults(null);
+    setRemoveDone(false);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const res = await fetch("/api/admin/remove-contact", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ emailOrPhone: removeValue.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRemoveResults(data);
+      } else {
+        setRemoveResults({ found: false, matches: [], totalBuildings: 0 });
+      }
+    } catch {
+      setRemoveResults({ found: false, matches: [], totalBuildings: 0 });
+    } finally {
+      setRemoveSearching(false);
+    }
+  };
+
+  const handleRemoveConfirm = async () => {
+    if (!removeResults?.found) return;
+    setRemoveConfirming(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const res = await fetch("/api/admin/remove-contact", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ emailOrPhone: removeValue.trim(), confirm: true }),
+      });
+      if (res.ok) {
+        setRemoveDone(true);
+        if (selectedBuilding) fetchRecipients();
+      }
+    } catch {
+      // ignore
+    } finally {
+      setRemoveConfirming(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -372,7 +450,7 @@ export default function RecipientsPage() {
             onChange={(e) => setSelectedBuilding(e.target.value)}
             className="max-w-[220px] border border-gray-300 rounded-md py-2 px-3 text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 truncate"
           >
-            <option value="">Select building</option>
+            <option value="">All Buildings</option>
             {buildings.map((building) => (
               <option key={building.id} value={building.id} className="text-gray-900 bg-white">
                 {building.name} - {building.cityName}
@@ -396,9 +474,21 @@ export default function RecipientsPage() {
               setSelectedExistingUserId("");
               setShowCreateModal(true);
             }}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+            disabled={!selectedBuilding}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             + Add Recipient
+          </button>
+          <button
+            onClick={() => {
+              setRemoveValue("");
+              setRemoveResults(null);
+              setRemoveDone(false);
+              setShowRemoveModal(true);
+            }}
+            className="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md shadow-sm text-red-700 bg-red-50 hover:bg-red-100"
+          >
+            Remove Contact
           </button>
         </div>
       </div>
@@ -409,16 +499,19 @@ export default function RecipientsPage() {
         </div>
       )}
 
-      {selectedBuilding ? (
-        <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+      <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
           {recipientsLoading ? (
             <div className="flex items-center justify-center py-16">
               <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent" />
             </div>
           ) : recipients.length === 0 ? (
             <div className="p-8 text-center text-gray-700 bg-gray-50">
-              <p className="font-medium">No recipients for this building.</p>
-              <p className="text-sm mt-1">Click &quot;+ Add Recipient&quot; to create one.</p>
+              <p className="font-medium">
+                No recipients found{selectedBuilding ? " for this building" : ""}.
+              </p>
+              {selectedBuilding && (
+                <p className="text-sm mt-1">Click &quot;+ Add Recipient&quot; to create one.</p>
+              )}
             </div>
           ) : (
           <table className="min-w-full divide-y divide-gray-200">
@@ -433,61 +526,21 @@ export default function RecipientsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {recipients.length === 0 && !recipientsLoading && selectedBuilding && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
-                    No recipients for this building yet —{" "}
-                    <button
-                      onClick={() => setShowCreateModal(true)}
-                      className="text-blue-600 hover:underline font-medium"
-                    >
-                      click here to add one
-                    </button>
-                  </td>
-                </tr>
-              )}
               {recipients.map((recipient) => (
                 <tr key={recipient.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {recipient.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                    {recipient.email || "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                    {recipient.phone || "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                    <span className="capitalize">{recipient.preference}</span>
-                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{recipient.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{recipient.email || "-"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{recipient.phone || "-"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800"><span className="capitalize">{recipient.preference}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${recipient.isActive
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-800"
-                        }`}
-                    >
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${recipient.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
                       {recipient.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(recipient)}
-                        className="p-1.5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50"
-                        title="Edit"
-                      >
-                        <IconEdit />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteClick(recipient)}
-                        className="p-1.5 text-red-600 hover:text-red-900 rounded hover:bg-red-50"
-                        title="Delete"
-                      >
-                        <IconDelete />
-                      </button>
+                      <button type="button" onClick={() => handleEdit(recipient)} className="p-1.5 text-blue-600 hover:text-blue-900 rounded hover:bg-blue-50" title="Edit"><IconEdit /></button>
+                      <button type="button" onClick={() => handleDeleteClick(recipient)} className="p-1.5 text-red-600 hover:text-red-900 rounded hover:bg-red-50" title="Delete"><IconDelete /></button>
                     </div>
                   </td>
                 </tr>
@@ -495,12 +548,23 @@ export default function RecipientsPage() {
             </tbody>
           </table>
           )}
-        </div>
-      ) : (
-        <div className="bg-white shadow rounded-lg p-8 border border-gray-200 text-center text-gray-600">
-          <p className="font-medium">Select a building above to view its recipients.</p>
-        </div>
-      )}
+          {!selectedBuilding && recipientsTotal > recipientsLimit && (
+            <div className="px-4 py-3 border-t border-gray-200">
+              <PaginationBar
+                page={recipientsPage}
+                limit={recipientsLimit}
+                total={recipientsTotal}
+                onPageChange={setRecipientsPage}
+                onLimitChange={(l) => {
+                  setRecipientsLimit(l);
+                  setRecipientsPage(1);
+                }}
+                itemLabel="recipients"
+              />
+            </div>
+          )}
+          </div>
+
 
       {/* Create Modal */}
       {showCreateModal && (
@@ -774,6 +838,122 @@ export default function RecipientsPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Contact Modal */}
+      {showRemoveModal && (
+        <div className="fixed z-50 inset-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20">
+            <div className="fixed inset-0 bg-gray-600 bg-opacity-80" onClick={() => setShowRemoveModal(false)} />
+            <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full border-2 border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {removeDone ? "Contact Removed" : "Remove Contact"}
+              </h3>
+
+              {removeDone ? (
+                <div>
+                  <div className="rounded-md bg-green-50 p-4 mb-4">
+                    <p className="text-sm font-medium text-green-800">
+                      Contact has been deactivated from all buildings.
+                    </p>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setShowRemoveModal(false)}
+                      className="px-4 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Enter an email or phone number to find and remove from all buildings.
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="email@example.com or +1234567890"
+                    className="block w-full border-2 border-gray-400 rounded-md py-2 px-3 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                    value={removeValue}
+                    onChange={(e) => {
+                      setRemoveValue(e.target.value);
+                      setRemoveResults(null);
+                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleRemoveSearch(); }}
+                  />
+
+                  {removeSearching && (
+                    <p className="text-sm text-gray-500 mb-4">Searching...</p>
+                  )}
+
+                  {removeResults && !removeResults.found && !removeSearching && (
+                    <div className="rounded-md bg-amber-50 p-3 mb-4">
+                      <p className="text-sm text-amber-800">No contacts found with that email or phone.</p>
+                    </div>
+                  )}
+
+                  {removeResults && removeResults.found && (
+                    <div className="mb-4">
+                      <div className="rounded-md bg-blue-50 p-3 mb-3">
+                        <p className="text-sm font-medium text-blue-800">
+                          Found in {removeResults.totalBuildings} building{removeResults.totalBuildings !== 1 ? "s" : ""}:
+                        </p>
+                      </div>
+                      {removeResults.matches.map((match, idx) => (
+                        <div key={idx} className="border border-gray-200 rounded-md p-3 mb-2 bg-gray-50">
+                          <p className="text-sm font-medium text-gray-900">
+                            {match.email || "—"}
+                          </p>
+                          {match.phone && (
+                            <p className="text-sm text-gray-600 mt-0.5">
+                              Phone: {match.phone}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">
+                            Buildings: {match.buildings.map((b) => b.name).join(", ")}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setShowRemoveModal(false)}
+                      className="px-4 py-2 border-2 border-gray-400 rounded-md text-gray-800 bg-white font-medium hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    {!removeResults && !removeSearching && (
+                      <button
+                        onClick={handleRemoveSearch}
+                        disabled={!removeValue.trim()}
+                        className="px-4 py-2 rounded-md bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        Continue
+                      </button>
+                    )}
+                    {removeSearching && (
+                      <button disabled className="px-4 py-2 rounded-md bg-blue-600 text-white font-medium opacity-50">
+                        Searching...
+                      </button>
+                    )}
+                    {removeResults?.found && !removeSearching && (
+                      <button
+                        onClick={handleRemoveConfirm}
+                        disabled={removeConfirming}
+                        className="px-4 py-2 rounded-md bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {removeConfirming ? "Removing..." : "Remove from all buildings"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
