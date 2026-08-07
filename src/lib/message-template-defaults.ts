@@ -35,41 +35,32 @@ export interface TemplateVariables {
 
 export function resolveSeasonalInstruction(
   direction: "increase" | "decrease" | "stable" = "increase",
-  temperatureData?: Record<string, unknown> | null,
+  _temperatureData?: Record<string, unknown> | null,
   referenceDate: Date | string | number = new Date(),
 ): string {
-  // Determine season based on calendar month (May-September = summer, else winter)
   const date =
     referenceDate instanceof Date
       ? referenceDate
       : new Date(referenceDate);
   const month = date.getMonth() + 1;
-  const isCoolingSeason = month >= 5 && month <= 9; // May-September = summer
+  const day = date.getDate();
 
-  let deltaValue = Number(
-    temperatureData?.change ?? temperatureData?.temperatureChange ?? 0,
-  );
-  if (
-    deltaValue === 0 &&
-    temperatureData?.currentTemp != null &&
-    temperatureData?.futureTemp != null
-  ) {
-    deltaValue =
-      Number(temperatureData.futureTemp) - Number(temperatureData.currentTemp);
-  }
-  const absDelta = Math.abs(deltaValue);
-  const deltaSuffix = absDelta > 0 ? ` by ${absDelta}°F` : "";
+  // Summer: April 16 – September 15
+  const isSummer =
+    (month === 4 && day >= 16) ||
+    (month >= 5 && month <= 8) ||
+    (month === 9 && day <= 15);
 
   if (direction === "increase") {
-    return isCoolingSeason
-      ? `In summer, use more cooling${deltaSuffix}.`
-      : `In winter, use less heat${deltaSuffix}.`;
+    return isSummer
+      ? "The temperature is increasing, please decrease your cooling settings by one or two settings and send us a photo of the changes setting in the next two hours to keep your guarantee active."
+      : "The temperature is increasing, please decrease your heating settings by one or two settings and send us a photo of the changes setting in the next two hours to keep your guarantee active.";
   }
 
   if (direction === "decrease") {
-    return isCoolingSeason
-      ? `In summer, use less cooling${deltaSuffix}.`
-      : `In winter, use more heat${deltaSuffix}.`;
+    return isSummer
+      ? "The temperature is dropping, please increase your cooling settings by one or two settings and send us a photo of the changes setting in the next two hours to keep your guarantee active."
+      : "The temperature is dropping, please increase your heating settings by one or two settings and send us a photo of the changes setting in the next two hours to keep your guarantee active.";
   }
 
   return "";
@@ -81,18 +72,12 @@ Temperatures appear to be consistent, no setting changes needed.
 Please keep monitoring temperatures and adjusting throughout the day.`,
 
   daily_summary_increase: `Here is your daily temperature setting message.
-Current Temperature: {{currentTemp}}°F | Future Temperature: {{futureTemp}}°F (Change: {{temperatureDelta}}°F)
-Temperatures appear to be increasing. {{seasonalInstruction}}
-Please forward pictures of temperature setting changes in the next two hours, to keep your guarantee active.
-Please keep monitoring temperatures and adjusting throughout the day.
+{{seasonalInstruction}}
 
 Upload photo or BMS record: {{uploadUrl}}`,
 
   daily_summary_decrease: `Here is your daily temperature setting message.
-Current Temperature: {{currentTemp}}°F | Future Temperature: {{futureTemp}}°F (Change: {{temperatureDelta}}°F)
-Temperatures appear to be decreasing. {{seasonalInstruction}}
-Please forward pictures of temperature setting changes in the next two hours, to keep your guarantee active.
-Please keep monitoring temperatures and adjusting throughout the day.
+{{seasonalInstruction}}
 
 Upload photo or BMS record: {{uploadUrl}}`,
 
@@ -128,7 +113,7 @@ export function isMessageTemplateType(
 export function resolveTemplateType(
   alertType: string,
   temperatureData: Record<string, unknown> | null | undefined,
-  stableThresholdF: number = 2,
+  stableThresholdF: number = 4,
 ): MessageTemplateType {
   const td = temperatureData ?? {};
 

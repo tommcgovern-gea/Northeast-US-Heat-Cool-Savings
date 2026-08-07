@@ -267,7 +267,7 @@ export class MessageService {
 
       const tempData = alert.temperature_data ?? {};
       const city = await db.getCityById(cityId);
-      const stableThreshold = Number(city?.alert_temp_delta ?? 2);
+      const stableThreshold = 4;
       const templateType = resolveTemplateType(
         alert.alert_type,
         tempData,
@@ -285,14 +285,6 @@ export class MessageService {
           : tempData.temperatureChange);
       const direction = Number(signedChange) >= 0 ? "increase" : "decrease";
       const variables: TemplateVariables = {
-        temperatureChange: signedChange,
-        temperatureDelta: Math.abs(Number(signedChange)),
-        timeWindow: tempData.timeWindow,
-        currentTemp: tempData.currentTemp != null ? Number(tempData.currentTemp) : undefined,
-        futureTemp: tempData.futureTemp != null ? Number(tempData.futureTemp) : undefined,
-        averageTemp: tempData.averageTemp != null ? Number(tempData.averageTemp) : undefined,
-        minTemp: tempData.minTemp != null ? Number(tempData.minTemp) : undefined,
-        maxTemp: tempData.maxTemp != null ? Number(tempData.maxTemp) : undefined,
         cityName: city?.name || "",
         buildingName: building.name,
         uploadUrl: "__UPLOAD_URL__",

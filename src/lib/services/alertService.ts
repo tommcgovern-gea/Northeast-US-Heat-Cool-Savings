@@ -103,12 +103,31 @@ export class AlertService {
     const minTemp = Math.min(...todayTemps);
     const maxTemp = Math.max(...todayTemps);
 
-    const yesterdaySnapshots = await db.getRecentTemperatureSnapshots(cityId, 48);
-    const yesterdayAvg = yesterdaySnapshots.length > 0
-      ? yesterdaySnapshots.slice(0, 24).reduce((sum, s) => sum + Number(s.temperature_f), 0) / Math.min(24, yesterdaySnapshots.length)
-      : averageTemp;
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const isSummer =
+      (month === 4 && day >= 16) ||
+      (month >= 5 && month <= 8) ||
+      (month === 9 && day <= 15);
 
-    const temperatureChange = averageTemp - yesterdayAvg;
+    const yesterdaySnapshots = await db.getRecentTemperatureSnapshots(cityId, 48);
+
+    let yesterdayValue = isSummer ? maxTemp : minTemp;
+    if (yesterdaySnapshots.length > 0) {
+      const forecastData = yesterdaySnapshots[0].forecast_data;
+      if (Array.isArray(forecastData) && forecastData.length >= 24) {
+        const yesterdayTemps = forecastData.slice(0, 24).map((f: any) => f.tempF);
+        yesterdayValue = isSummer
+          ? Math.max(...yesterdayTemps)
+          : Math.min(...yesterdayTemps);
+      } else {
+        yesterdayValue = isSummer ? maxTemp : minTemp;
+      }
+    }
+
+    const todayValue = isSummer ? maxTemp : minTemp;
+    const temperatureChange = todayValue - yesterdayValue;
 
     return {
       currentTemp: Math.round(currentTemp * 10) / 10,

@@ -63,6 +63,13 @@ export default function BuildingSignupPage() {
   const [cityMustSelectFromList, setCityMustSelectFromList] = useState(false);
   const [selectedCity, setSelectedCity] = useState<CitySuggestion | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+  const [otpVerified, setOtpVerified] = useState(false);
+
 
   useEffect(() => {
     if (initDone.current) return;
@@ -202,6 +209,105 @@ export default function BuildingSignupPage() {
     "Content-Type": "application/json",
   });
 
+  const handleSendCode = async () => {
+    setSendingCode(true);
+    setVerificationError("");
+    try {
+      const res = await fetch("/api/auth/send-verification", {
+        method: "POST",
+        headers: authHeaders(onboardingTokenRef.current),
+        body: JSON.stringify({ phone: form.phone }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Failed to send code");
+    } catch (err: any) {
+      setVerificationError(err.message);
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    setVerifyingCode(true);
+    setVerificationError("");
+    try {
+      const res = await fetch("/api/auth/verify-code", {
+        method: "POST",
+        headers: authHeaders(onboardingTokenRef.current),
+        body: JSON.stringify({ phone: form.phone, code: verificationCode }),
+      });
+      const data = await res.json();
+      if (data.verified) {
+        setOtpVerified(true);
+        setTimeout(() => {
+          setShowOtpModal(false);
+          setOtpVerified(false);
+          setVerificationCode("");
+          completeRegistration();
+        }, 1500);
+      } else {
+        setVerificationError(data.error || "Invalid code");
+      }
+    } catch (err: any) {
+      setVerificationError(err.message);
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
+  const openOtpModal = () => {
+    setShowOtpModal(true);
+    setVerificationError("");
+    setVerificationCode("");
+    setOtpVerified(false);
+    handleSendCode();
+  };
+
+  const completeRegistration = async () => {
+    if (!selectedCity) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/building/onboarding/complete", {
+        method: "POST",
+        headers: authHeaders(onboardingToken),
+        body: JSON.stringify({
+          accessCode,
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          companyName: form.companyName.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim() || null,
+          buildingAddress: form.buildingAddress.trim(),
+          city: form.city.trim(),
+          zipCode: form.zipCode.trim(),
+          citySelection: {
+            name: selectedCity.name,
+            state: selectedCity.state,
+            nwsOffice: selectedCity.nwsOffice,
+            nwsGridX: selectedCity.nwsGridX,
+            nwsGridY: selectedCity.nwsGridY,
+          },
+          preference: form.preference,
+          password: form.password,
+          reserve1: form.reserve1.trim() || null,
+          reserve2: form.reserve2.trim() || null,
+          reserve3: form.reserve3.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Registration failed");
+
+      sessionStorage.removeItem(ONBOARDING_TOKEN_KEY);
+      sessionStorage.removeItem(ONBOARDING_CODE_KEY);
+      localStorage.setItem("token", data.token);
+      setPage("success");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -230,6 +336,16 @@ export default function BuildingSignupPage() {
       form.preference === "sms" || form.preference === "both";
     if (needsPhone && !form.phone.trim()) {
       setError("Please enter a phone number to receive SMS.");
+      return;
+    }
+
+    if (needsPhone && form.phone.trim() && !form.phone.startsWith("+")) {
+      setError("Please include country code in phone number (e.g., +1 for US).");
+      return;
+    }
+
+    if (needsPhone && form.phone.trim()) {
+      openOtpModal();
       return;
     }
 
@@ -402,9 +518,18 @@ export default function BuildingSignupPage() {
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
+          <p className="text-xs text-gray-500 mt-1">
+            Please add your working phone number, we will send a verification
+            code to confirm it.
+          </p>
           {needsPhoneForSms && !form.phone.trim() && (
             <p className="mt-1 text-xs text-amber-800" role="status">
               Please enter a phone number to receive SMS.
+            </p>
+          )}
+          {form.phone && !form.phone.startsWith("+") && (
+            <p className="mt-1 text-xs text-amber-800" role="status">
+              Please include country code (e.g., +1 for US, +91 for India).
             </p>
           )}
         </div>
@@ -447,7 +572,9 @@ export default function BuildingSignupPage() {
               placeholder="Type city name..."
               aria-invalid={cityMustSelectFromList || cityNoResults}
               aria-describedby={
-                cityMustSelectFromList || cityNoResults || citySuggestions.length > 0
+                cityMustSelectFromList ||
+                cityNoResults ||
+                citySuggestions.length > 0
                   ? "city-field-hint"
                   : undefined
               }
@@ -546,7 +673,6 @@ export default function BuildingSignupPage() {
           </select>
         </div>
 
-
         {/* <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
           <div>
             <label htmlFor="reserve1" className="block text-xs text-gray-500">
@@ -583,12 +709,6 @@ export default function BuildingSignupPage() {
           </div>
         </div> */}
 
-        <div className="rounded-md bg-blue-50 border border-blue-200 p-4 mt-6">
-          <p className="text-sm font-medium text-blue-900">
-            To maintain eligibility for the savings guarantee, please upload a photo or BMS/BAS screenshot showing the updated setpoint within two hours of receiving an alert.
-          </p>
-        </div>
-
         <button
           type="submit"
           disabled={loading}
@@ -597,6 +717,120 @@ export default function BuildingSignupPage() {
           {loading ? "Saving..." : "Submit"}
         </button>
       </form>
+
+      {showOtpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            {otpVerified ? (
+              <div className="text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                  <svg
+                    className="h-8 w-8 text-green-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Phone Verified Successfully!
+                </h3>
+                <p className="mt-2 text-sm text-gray-600">
+                  Your phone number has been verified. Completing
+                  registration...
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Verify Phone Number
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowOtpModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-4">
+                  We sent a verification code to your phone. Enter the 6-digit
+                  code below.
+                </p>
+
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    placeholder="------"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    maxLength={6}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-center text-base tracking-[0.3em]"
+                    autoFocus
+                  />
+                </div>
+
+                {verificationError && (
+                  <p className="mb-3 text-sm text-red-600">
+                    {verificationError}
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowOtpModal(false)}
+                    className="flex-1 px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleVerifyCode}
+                    disabled={
+                      verifyingCode ||
+                      !verificationCode ||
+                      verificationCode.length < 6
+                    }
+                    className="flex-1 px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {verifyingCode ? "Verifying..." : "Verify"}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSendCode}
+                  disabled={sendingCode}
+                  className="mt-3 w-full text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:text-gray-400"
+                >
+                  {sendingCode ? "Sending..." : "Resend Code"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </PortalShell>
   );
 }
