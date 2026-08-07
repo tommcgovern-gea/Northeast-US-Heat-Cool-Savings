@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function BuildingLayout({
@@ -90,6 +91,18 @@ export default function BuildingLayout({
               </h1>
             </div>
             <div className="flex items-center space-x-4">
+              <Link
+                href="/building"
+                className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/building/profile"
+                className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                Profile
+              </Link>
               <button
                 onClick={handleLogout}
                 className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md cursor-pointer transition-colors"

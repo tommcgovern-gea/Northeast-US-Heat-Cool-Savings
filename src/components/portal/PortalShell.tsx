@@ -40,16 +40,16 @@ export function PortalShell({
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
-      <header className="px-4 pt-6 sm:px-6 min-h-[2rem]">
-        {backHref ? (
+      {backHref && (
+        <header className="px-4 pt-6 sm:px-6 min-h-[2rem]">
           <Link
             href={backHref}
             className="text-sm text-blue-600 hover:text-blue-500"
           >
             ← {backLabel}
           </Link>
-        ) : null}
-      </header>
+        </header>
+      )}
 
       <main
         className={`mx-auto flex w-full flex-1 flex-col justify-center px-4 py-10 sm:px-6 ${widthClass}`}
