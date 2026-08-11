@@ -314,7 +314,7 @@ export const updateRecipient = async (req: NextRequest, recipientId: string) => 
       email: updated.email,
       phone: updated.phone,
       preference: updated.preference,
-      isActive: updated.is_active,
+      isActive: body.isActive !== undefined ? body.isActive === true : updated.is_active,
       updatedAt: updated.updated_at,
     });
   } catch (error) {
