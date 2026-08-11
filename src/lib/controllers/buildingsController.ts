@@ -69,7 +69,11 @@ export const getBuildings = async (req: NextRequest) => {
       })
     );
 
-    return NextResponse.json(responseData);
+    const filtered = user.role === "ADMIN" || user.role === "STAFF"
+      ? responseData.filter((b) => b.recipientCount > 0)
+      : responseData;
+
+    return NextResponse.json(filtered);
   } catch (error) {
     console.error("Error fetching buildings:", error);
     return NextResponse.json({ message: "Error fetching buildings" }, { status: 500 });

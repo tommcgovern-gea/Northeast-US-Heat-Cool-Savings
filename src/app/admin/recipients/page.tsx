@@ -13,6 +13,7 @@ interface Recipient {
   phone: string | null;
   preference: string;
   isActive: boolean;
+  buildings?: { id: string; name: string; cityName: string }[];
 }
 
 interface Building {
@@ -39,6 +40,7 @@ export default function RecipientsPage() {
     buildingIds: [] as string[],
     password: "",
     confirmPassword: "",
+    isActive: true,
   });
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -71,6 +73,8 @@ export default function RecipientsPage() {
   } | null>(null);
   const [removeConfirming, setRemoveConfirming] = useState(false);
   const [removeDone, setRemoveDone] = useState(false);
+
+
 
   useEffect(() => {
     fetchBuildings();
@@ -182,6 +186,7 @@ export default function RecipientsPage() {
       buildingIds: [],
       password: "",
       confirmPassword: "",
+      isActive: recipient.isActive,
     });
     setEditBuildingIds([]);
     setShowEditModal(true);
@@ -213,16 +218,16 @@ export default function RecipientsPage() {
     setEditModalError("");
 
     const ids = formData.buildingIds.length > 0 ? formData.buildingIds : editBuildingIds;
-    if (ids.length === 0) {
-      setEditModalError("Please select at least one building.");
-      return;
-    }
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
       setEditModalError("Invalid email address.");
       return;
     }
     if (formData.phone && !/^\+?[1-9]\d{9,14}$/.test(formData.phone.replace(/[\s\-().]/g, ""))) {
       setEditModalError("Invalid phone number. Use format: +12223334444");
+      return;
+    }
+    if ((formData.preference === "sms" || formData.preference === "both") && !formData.phone?.trim()) {
+      setEditModalError("Phone number is required for SMS or Both communication preference.");
       return;
     }
 
@@ -234,8 +239,9 @@ export default function RecipientsPage() {
         email: formData.email || null,
         phone: formData.phone || null,
         preference: formData.preference,
-        buildingIds: ids,
+        isActive: formData.isActive,
       };
+      if (ids.length > 0) body.buildingIds = ids;
 
       const response = await fetch(`/api/recipients/${editingRecipient.id}`, {
         method: "PUT",
@@ -253,7 +259,7 @@ export default function RecipientsPage() {
 
       setShowEditModal(false);
       setEditingRecipient(null);
-      setFormData({ name: "", email: "", phone: "", preference: "email", buildingId: "", buildingIds: [], password: "", confirmPassword: "" });
+      setFormData({ name: "", email: "", phone: "", preference: "email", buildingId: "", buildingIds: [], password: "", confirmPassword: "", isActive: true });
       setToast("Recipient updated successfully.");
       fetchRecipients();
     } catch (err: any) {
@@ -322,6 +328,10 @@ export default function RecipientsPage() {
         setCreateModalError("Invalid phone number. Use format: +12223334444");
         return;
       }
+      if ((formData.preference === "sms" || formData.preference === "both") && !formData.phone?.trim()) {
+        setCreateModalError("Phone number is required for SMS or Both communication preference.");
+        return;
+      }
       if (formData.password && formData.password !== formData.confirmPassword) {
         setCreateModalError("Passwords do not match.");
         return;
@@ -366,7 +376,7 @@ export default function RecipientsPage() {
       }
 
       setShowCreateModal(false);
-      setFormData({ name: "", email: "", phone: "", preference: "email", buildingId: "", buildingIds: [], password: "", confirmPassword: "" });
+      setFormData({ name: "", email: "", phone: "", preference: "email", buildingId: "", buildingIds: [], password: "", confirmPassword: "", isActive: true });
       setAddRecipientTab("new");
       setSelectedExistingUserId("");
       setToast("Recipient added successfully.");
@@ -469,6 +479,7 @@ export default function RecipientsPage() {
                 buildingIds: current ? [current] : [],
                 password: "",
                 confirmPassword: "",
+                isActive: true,
               });
               setAddRecipientTab("new");
               setSelectedExistingUserId("");
@@ -520,6 +531,7 @@ export default function RecipientsPage() {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">Buildings</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">Preference</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-800 uppercase tracking-wider">Actions</th>
@@ -531,6 +543,18 @@ export default function RecipientsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{recipient.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{recipient.email || "-"}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{recipient.phone || "-"}</td>
+                  <td className="px-6 py-4 text-sm text-gray-800 max-w-[200px]">
+                    {recipient.buildings && recipient.buildings.length > 0 ? (
+                      <span className="text-xs" title={recipient.buildings.map(b => `${b.name} (${b.cityName})`).join(', ')}>
+                        {recipient.buildings.length === 1
+                          ? `${recipient.buildings[0].name} (${recipient.buildings[0].cityName})`
+                          : `${recipient.buildings[0].name} (${recipient.buildings[0].cityName}) +${recipient.buildings.length - 1}`
+                        }
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800"><span className="capitalize">{recipient.preference}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${recipient.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
@@ -718,6 +742,9 @@ export default function RecipientsPage() {
                             value={formData.phone}
                             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                           />
+                          {(formData.preference === "sms" || formData.preference === "both") && !formData.phone?.trim() && (
+                            <p className="mt-1 text-xs text-amber-700">Phone number is required for SMS.</p>
+                          )}
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-800 mb-1">Communication Preference</label>
@@ -817,6 +844,20 @@ export default function RecipientsPage() {
                         <option value="sms" className="text-gray-900 bg-white">SMS</option>
                         <option value="both" className="text-gray-900 bg-white">Both</option>
                       </select>
+                    </div>
+                    <div className="flex items-center gap-3 py-2">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={formData.isActive}
+                          onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                        />
+                        <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600" />
+                      </label>
+                      <span className={`text-sm font-medium ${formData.isActive ? "text-green-700" : "text-gray-500"}`}>
+                        {formData.isActive ? "Active" : "Inactive"}
+                      </span>
                     </div>
                   </div>
                 </div>
