@@ -277,6 +277,7 @@ export const db = {
     email: string;
     phone: string | null;
     preference: "email" | "sms" | "both";
+    is_active?: boolean;
   }): Promise<Recipient> {
     const email = data.email.trim();
     const existing = await sql`
@@ -288,11 +289,13 @@ export const db = {
     `;
     const row = toRows(existing)[0] as { id: string } | undefined;
     if (row) {
+      const existingRecipient = await this.getRecipientById(row.id);
       const updated = await this.updateRecipient(row.id, {
         name: data.name,
         phone: data.phone,
         preference: data.preference,
-        is_active: true,
+        is_active:
+          data.is_active !== undefined ? data.is_active : existingRecipient?.is_active ?? true,
       });
       return updated as Recipient;
     }
@@ -302,7 +305,7 @@ export const db = {
       email,
       phone: data.phone,
       preference: data.preference,
-      is_active: true,
+      is_active: data.is_active !== undefined ? data.is_active : true,
     });
   },
 
@@ -352,6 +355,20 @@ export const db = {
       DELETE FROM recipients WHERE id = ${id} RETURNING id
     `;
     return toRows(result).length > 0;
+  },
+
+  /** Set is_active for all recipient rows matching an email (normalized, case-insensitive). */
+  async updateRecipientsActiveByEmail(
+    email: string,
+    isActive: boolean,
+  ): Promise<number> {
+    const result = await sql`
+      UPDATE recipients
+      SET is_active = ${isActive}, updated_at = NOW()
+      WHERE email IS NOT NULL AND LOWER(TRIM(email)) = LOWER(${email})
+      RETURNING id
+    `;
+    return toRows(result).length;
   },
 
   async createAlertLog(
