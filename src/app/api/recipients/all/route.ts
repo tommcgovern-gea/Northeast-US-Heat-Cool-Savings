@@ -50,7 +50,9 @@ export async function GET(req: NextRequest) {
 
     for (const r of recipientRows) {
       const email = ((r as any).email || "").toLowerCase();
-      if (!emailMap.has(email)) {
+      if (emailMap.has(email)) {
+        emailMap.get(email).isActive = !!(r as any).is_active;
+      } else {
         emailMap.set(email, {
           id: (r as any).id,
           name: (r as any).name,
