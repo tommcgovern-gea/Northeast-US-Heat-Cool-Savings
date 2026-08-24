@@ -31,6 +31,7 @@ export interface TemplateVariables {
   uploadUrl?: string;
   hoursAgo?: number;
   seasonalInstruction?: string;
+  firstName?: string;
 }
 
 export function resolveSeasonalInstruction(
@@ -53,14 +54,14 @@ export function resolveSeasonalInstruction(
 
   if (direction === "increase") {
     return isSummer
-      ? "The temperature is increasing, please decrease your cooling settings by one or two settings and send us a photo of the changes setting in the next two hours to keep your guarantee active."
-      : "The temperature is increasing, please decrease your heating settings by one or two settings and send us a photo of the changes setting in the next two hours to keep your guarantee active.";
+      ? "The outside temperature is increasing, please decrease temperature setpoint settings once or twice to increase cooling and keep your occupants comfortable."
+      : "The ambient temperature is increasing, please raise your heating temperatures setpoint settings once or twice to decrease heating and keep saving energy.";
   }
 
   if (direction === "decrease") {
     return isSummer
-      ? "The temperature is dropping, please increase your cooling settings by one or two settings and send us a photo of the changes setting in the next two hours to keep your guarantee active."
-      : "The temperature is dropping, please increase your heating settings by one or two settings and send us a photo of the changes setting in the next two hours to keep your guarantee active.";
+      ? "The outside temperature is decreasing, please raise temperature setpoint settings once or twice to decrease cooling and keep saving energy."
+      : "The ambient temperature is decreasing, please lower your heating temperatures setpoint settings once or twice to increase heating and keep occupants comfortable.";
   }
 
   return "";
@@ -71,13 +72,23 @@ export const CLIENT_DEFAULT_TEMPLATES: Record<MessageTemplateType, string> = {
 Temperatures appear to be consistent, no setting changes needed.
 Please keep monitoring temperatures and adjusting throughout the day.`,
 
-  daily_summary_increase: `Here is your daily temperature setting message.
+  daily_summary_increase: `Hello {{firstName}},
+
 {{seasonalInstruction}}
+
+Reminder to send us a photo of the changes in the next two hours to keep your guarantee active.
+
+Tom
 
 Upload photo or BMS record: {{uploadUrl}}`,
 
-  daily_summary_decrease: `Here is your daily temperature setting message.
+  daily_summary_decrease: `Hello {{firstName}},
+
 {{seasonalInstruction}}
+
+Reminder to send us a photo of the changes in the next two hours to keep your guarantee active.
+
+Tom
 
 Upload photo or BMS record: {{uploadUrl}}`,
 

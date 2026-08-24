@@ -85,7 +85,7 @@ export class ReportService {
 
     return new Promise((resolve, reject) => {
       try {
-        const doc = new PDFDocument({ margin: 50 });
+        const doc = new PDFDocument({ margin: 50, bufferPages: true });
         const chunks: Buffer[] = [];
 
         doc.on('data', (chunk) => chunks.push(chunk));
@@ -208,10 +208,19 @@ export class ReportService {
           }
         }
 
-        // Footer
-        doc.moveDown(2);
+        // Footer — pinned 30px from the bottom edge. PDFKit auto-inserts a page
+        // if a write target falls outside the declared bottom margin, so the
+        // margin is temporarily zeroed for this one write and restored right after.
+        const originalBottomMargin = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
         doc.fontSize(8).fillColor('gray');
-        doc.text(`Report generated on ${new Date().toLocaleString()}`, 50, doc.page.height - 50, { align: 'center' });
+        doc.text(
+          `Report generated on ${new Date().toLocaleString()}`,
+          50,
+          doc.page.height - 30,
+          { align: 'center', width: doc.page.width - 100, lineBreak: false }
+        );
+        doc.page.margins.bottom = originalBottomMargin;
         doc.fillColor('black');
 
         doc.end();

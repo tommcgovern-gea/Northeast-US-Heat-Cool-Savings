@@ -42,6 +42,9 @@ function inferEmailSubject(content: string, messageType: string): string {
   if (lower.includes("special temperature setting alert")) {
     return "Special Temperature Setting Alert";
   }
+  if (lower.includes("setpoint settings")) {
+    return "Alert for Temperature Setting Change";
+  }
   if (lower.includes("daily temperature setting message")) {
     return "Daily Temperature Setting Message";
   }
@@ -284,16 +287,12 @@ export class MessageService {
           ? Number(tempData.futureTemp) - Number(tempData.currentTemp)
           : tempData.temperatureChange);
       const direction = Number(signedChange) >= 0 ? "increase" : "decrease";
-      const variables: TemplateVariables = {
+      const baseVariables: TemplateVariables = {
         cityName: city?.name || "",
         buildingName: building.name,
         uploadUrl: "__UPLOAD_URL__",
         seasonalInstruction: resolveSeasonalInstruction(direction, tempData),
       };
-      const content = await templateService.renderTemplate(
-        templateContent,
-        variables,
-      );
 
       for (const r of buildingRecipients) {
         if (!r.is_active) continue;
@@ -307,6 +306,11 @@ export class MessageService {
           }
         }
         if (emailNorm && (r.email || "").toLowerCase() !== emailNorm) continue;
+        const firstName = (r.name || "").trim().split(/\s+/)[0] || "there";
+        const content = await templateService.renderTemplate(templateContent, {
+          ...baseVariables,
+          firstName,
+        });
         messageItems.push({
           alertLogId,
           buildingId: building.id,
