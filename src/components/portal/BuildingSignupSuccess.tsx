@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { REGISTRATION_SUCCESS_MESSAGE } from "@/lib/content/registrationSuccessMessage";
 
 /** Post-registration success screen (building portal onboarding). */
 export function BuildingSignupSuccess() {
+  const [intro, ...bodyParagraphs] = REGISTRATION_SUCCESS_MESSAGE.split("\n\n");
   return (
     <div className="overflow-hidden rounded-2xl border border-green-200 bg-white shadow-sm">
       <div className="bg-gradient-to-br from-green-500 to-emerald-600 px-6 py-6 text-center text-white sm:px-8">
@@ -27,52 +29,23 @@ export function BuildingSignupSuccess() {
       </div>
 
       <div className="px-6 py-8 text-sm leading-relaxed text-gray-700 sm:px-8">
-        <p>You have successfully entered all information.</p>
+        <p>{intro}</p>
 
         <div className="rounded-md bg-blue-50 border border-blue-200 p-4 mt-3">
           <p className="text-sm font-medium text-blue-900">
-            Thanks for taking steps to lower your energy consumption and help
-            our shared environment.
-            <br />
-            <br />
-            We are so glad you joined the portal, you will receive messages to
-            help raise or lower temperature setpoints.
-            <br />
-            <br />
-            To keep our guarantee active, please be sure to email back a photo
-            of the changed setpoint within 2-hours of every message.
-            <br />
-            <br />
-            Your cooperation is deeply appreciated, call Tom at 631 521 3594
-            with any questions.
-            <br />
-            <br />
-            We can't wait to share savings with you and continue our path to
-            improving our shared environment.
-            <br />
-            <br />
-            Thank you
+            {bodyParagraphs.map((paragraph, i) => (
+              <span key={i}>
+                {i > 0 && (
+                  <>
+                    <br />
+                    <br />
+                  </>
+                )}
+                {paragraph}
+              </span>
+            ))}
           </p>
         </div>
-
-        {/* <div className="h-16" aria-hidden /> */}
-
-        {/* <p>
-          You will begin receiving messages regarding building temperature
-          setpoint changes every day and special alerts any time the temperature
-          fluctuates significantly.
-        </p> */}
-        {/* <p className="mt-3">
-          Keep an eye out for these messages and send back the proof of changes
-          as discussed during onboarding.
-        </p>
-
-        <div className="h-16" aria-hidden />
-
-        <p>
-          Thanks so much, looking forward to helping you reduce your energy
-          consumption substantially.
-        </p> */}
 
         <Link
           href="/building"

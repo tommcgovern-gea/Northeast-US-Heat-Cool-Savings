@@ -7,6 +7,9 @@ import {
   type CitySignupSelection,
 } from "@/lib/building-onboarding";
 import { searchCitiesByName } from "@/lib/controllers/citiesController";
+import { sendEmail } from "@/lib/services/emailService";
+import { sendSMS } from "@/lib/services/smsService";
+import { REGISTRATION_SUCCESS_MESSAGE } from "@/lib/content/registrationSuccessMessage";
 
 function getOnboardingToken(req: NextRequest): { accessCodeId: number } | null {
   const authHeader = req.headers.get("authorization");
@@ -16,6 +19,35 @@ function getOnboardingToken(req: NextRequest): { accessCodeId: number } | null {
 
 const normalizeBuildingText = (value: string): string =>
   value.trim().replace(/\s+/g, " ");
+
+/** Confirms a successful registration over the same channel(s) the user picked, reusing the success-page copy. */
+async function sendRegistrationConfirmation(params: {
+  email: string;
+  phone: string | null;
+  preference: "email" | "sms" | "both";
+}): Promise<void> {
+  const { email, phone, preference } = params;
+
+  if (preference === "email" || preference === "both") {
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Registration confirmed",
+        text: REGISTRATION_SUCCESS_MESSAGE,
+      });
+    } catch (e) {
+      console.error("Failed to send registration confirmation email:", e);
+    }
+  }
+
+  if ((preference === "sms" || preference === "both") && phone) {
+    try {
+      await sendSMS(phone, REGISTRATION_SUCCESS_MESSAGE);
+    } catch (e) {
+      console.error("Failed to send registration confirmation SMS:", e);
+    }
+  }
+}
 
 export async function searchCities(req: NextRequest) {
   const session = getOnboardingToken(req);
@@ -276,6 +308,8 @@ export async function completeOnboarding(req: NextRequest) {
       { status: 409 },
     );
   }
+
+  await sendRegistrationConfirmation({ email: user.email, phone, preference });
 
   const token = signToken({
     userId: user.id,
