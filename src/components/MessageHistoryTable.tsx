@@ -33,6 +33,7 @@ export interface MessageHistoryTableProps {
     onPageChange: (page: number) => void;
     onLimitChange?: (limit: number) => void;
     itemLabel?: string;
+    limitOptions?: number[];
   };
   /** Optional class for scrollable wrapper (e.g. max-h-[28rem] overflow-y-auto) to fix height. */
   scrollClassName?: string;
@@ -93,25 +94,13 @@ export function MessageHistoryTable({
         total={pagination.total}
         onPageChange={pagination.onPageChange}
         onLimitChange={pagination.onLimitChange}
+        limitOptions={pagination.limitOptions}
         loading={loading}
         variant="compact"
         itemLabel={pagination.itemLabel ?? "results"}
-        part="top"
+        part="all"
       />
     ) : null;
-  const paginationBottom = showPagination ? (
-    <PaginationBar
-      page={pagination.page}
-      limit={pagination.limit}
-      total={pagination.total}
-      onPageChange={pagination.onPageChange}
-      onLimitChange={pagination.onLimitChange}
-      loading={loading}
-      variant="compact"
-      itemLabel={pagination.itemLabel ?? "results"}
-      part="bottom"
-    />
-  ) : null;
 
   const content = loading ? (
     <div className="animate-pulse space-y-2">
@@ -257,7 +246,6 @@ export function MessageHistoryTable({
       ) : (
         content
       )}
-      {paginationBottom}
     </>
   );
 }

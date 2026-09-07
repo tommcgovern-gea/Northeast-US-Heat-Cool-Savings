@@ -417,17 +417,20 @@ export const db = {
     return toRows(result)[0] as TemperatureSnapshot;
   },
 
-  async getRecentTemperatureSnapshots(
+  /** Most recent snapshot strictly before today (UTC), so same-day re-runs
+   * (manual triggers, retries) never get compared against themselves. */
+  async getPriorDayTemperatureSnapshot(
     cityId: string,
-    hours: number = 24,
-  ): Promise<TemperatureSnapshot[]> {
+  ): Promise<TemperatureSnapshot | null> {
     const result = await sql`
       SELECT * FROM temperature_snapshots
       WHERE city_id = ${cityId}
-        AND recorded_at >= NOW() - make_interval(hours => ${hours})
+        AND recorded_at < date_trunc('day', NOW())
       ORDER BY recorded_at DESC
+      LIMIT 1
     `;
-    return toRows(result) as TemperatureSnapshot[];
+    const rows = toRows(result) as TemperatureSnapshot[];
+    return rows[0] ?? null;
   },
 
   async getUserByEmail(email: string): Promise<any | null> {

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 export interface PaginationBarProps {
   page: number;
   limit: number;
@@ -33,6 +35,22 @@ export function PaginationBar({
   const start = total === 0 ? 0 : (page - 1) * limit + 1;
   const end = Math.min(page * limit, total);
 
+  const [pageInput, setPageInput] = useState(String(page));
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
+
+  const jumpToPage = () => {
+    const n = parseInt(pageInput, 10);
+    if (Number.isNaN(n)) {
+      setPageInput(String(page));
+      return;
+    }
+    const clamped = Math.min(Math.max(n, 1), totalPages);
+    setPageInput(String(clamped));
+    if (clamped !== page) onPageChange(clamped);
+  };
+
   const rangeText =
     total > 0
       ? `${page > 1 ? (page - 1) * limit + 1 : 1}–${end} of ${total}`
@@ -43,6 +61,27 @@ export function PaginationBar({
 
   const buttonClass =
     "px-2 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed";
+
+  const goToPageControl =
+    totalPages > 1 ? (
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-800 whitespace-nowrap">Go to page</span>
+        <input
+          type="number"
+          min={1}
+          max={totalPages}
+          value={pageInput}
+          onChange={(e) => setPageInput(e.target.value)}
+          onBlur={jumpToPage}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") jumpToPage();
+          }}
+          disabled={loading}
+          className="w-11 rounded border-gray-300 text-sm text-center py-1 px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <span className="text-sm text-gray-500 whitespace-nowrap">of {totalPages}</span>
+      </div>
+    ) : null;
 
   const limitRow =
     (part === "all" || part === "top") && onLimitChange ? (
@@ -78,8 +117,9 @@ export function PaginationBar({
           <span className="font-medium">{total}</span> {itemLabel}
         </span>
       )}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         {total > 0 && <span className="text-sm text-gray-800">{rangeText}</span>}
+        {goToPageControl}
         <div className="flex gap-2">
           <button
             type="button"
@@ -104,10 +144,58 @@ export function PaginationBar({
 
   if (part === "top") return <>{limitRow}</>;
   if (part === "bottom") return <>{prevNextRow}</>;
+
   return (
-    <div className="mb-4 space-y-3">
-      {limitRow}
-      {prevNextRow}
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-y-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-2.5">
+      <span className="text-sm text-gray-700">
+        {variant === "full" && total > 0 ? (
+          <>
+            Showing <span className="font-medium">{start}</span> to{" "}
+            <span className="font-medium">{end}</span> of{" "}
+            <span className="font-medium">{total}</span> {itemLabel}
+          </>
+        ) : (
+          rangeText
+        )}
+      </span>
+      <div className="flex flex-wrap items-center divide-x divide-gray-300">
+        {onLimitChange && (
+          <span className="pr-4 text-sm text-gray-800 whitespace-nowrap">
+            Show
+            <select
+              value={limit}
+              onChange={(e) => onLimitChange(Number(e.target.value))}
+              className="mx-1.5 rounded border-gray-300 text-sm py-0.5"
+            >
+              {limitOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            per page
+          </span>
+        )}
+        {goToPageControl && <div className="px-4">{goToPageControl}</div>}
+        <div className="flex gap-2 pl-4">
+          <button
+            type="button"
+            onClick={() => onPageChange(page - 1)}
+            disabled={prevDisabled}
+            className={buttonClass}
+          >
+            Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => onPageChange(page + 1)}
+            disabled={nextDisabled}
+            className={buttonClass}
+          >
+            Next
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -283,9 +283,11 @@ export class MessageService {
       );
       const signedChange =
         tempData.change ??
-        (tempData.futureTemp != null && tempData.currentTemp != null
-          ? Number(tempData.futureTemp) - Number(tempData.currentTemp)
-          : tempData.temperatureChange);
+        (alert.alert_type === "daily_summary"
+          ? tempData.temperatureChange
+          : tempData.futureTemp != null && tempData.currentTemp != null
+            ? Number(tempData.futureTemp) - Number(tempData.currentTemp)
+            : tempData.temperatureChange);
       const direction = Number(signedChange) >= 0 ? "increase" : "decrease";
       const baseVariables: TemplateVariables = {
         cityName: city?.name || "",

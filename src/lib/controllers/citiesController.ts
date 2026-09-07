@@ -141,6 +141,32 @@ export type CitySearchSuggestion = {
   displayName: string;
 };
 
+/**
+ * Nominatim/OSM files countless real places (NYC's boroughs, but also things
+ * like Hollywood/Los Angeles, South Boston/Boston, Astoria/Oregon-as-a-town-
+ * but-Astoria/Queens-as-a-neighbourhood, etc.) as a "suburb"/"neighbourhood"
+ * of a bigger city rather than as their own city/town/village. A plain
+ * address.city lookup collapses all of these into the parent city's name.
+ * loc.name is Nominatim's own resolved name for whatever specifically
+ * matched the search, so preferring it over address.city fixes this
+ * generally (for standalone cities, name === address.city anyway, so
+ * behavior there is unchanged).
+ */
+
+/**
+ * One specific record is known to have its name tag vandalized in OSM: the
+ * Brooklyn (Kings County, NY) boundary relation resolves loc.name to
+ * "Cancún" instead of "Brooklyn". County is unaffected, so use it as a
+ * narrow override for this one known-bad case.
+ */
+const NYC_BOROUGH_BY_COUNTY: Record<string, string> = {
+  "Kings County": "Brooklyn",
+  "Queens County": "Queens",
+  "Bronx County": "The Bronx",
+  "New York County": "Manhattan",
+  "Richmond County": "Staten Island",
+};
+
 /** Geocode US city name and resolve NWS grid (shared by admin + building onboarding). */
 export async function searchCitiesByName(query: string): Promise<CitySearchSuggestion[]> {
   const geocodeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=us&format=json&addressdetails=1&limit=5`;
@@ -152,15 +178,18 @@ export async function searchCitiesByName(query: string): Promise<CitySearchSugge
   const locations = await geoRes.json();
   const suggestions = await Promise.all(
     locations.map(async (loc: {
+      name?: string;
       lat: string;
       lon: string;
       display_name: string;
       address: {
         state?: string;
         state_district?: string;
+        county?: string;
         city?: string;
         town?: string;
         village?: string;
+        suburb?: string;
       };
     }) => {
       try {
@@ -169,10 +198,15 @@ export async function searchCitiesByName(query: string): Promise<CitySearchSugge
         const stateName = loc.address.state || loc.address.state_district || "";
         const stateCode =
           stateMap[stateName] || (stateName.length === 2 ? stateName.toUpperCase() : "");
+        const county = loc.address.county || "";
+        const vandalizedNameOverride = stateCode === "NY" ? NYC_BOROUGH_BY_COUNTY[county] : undefined;
         const cityName =
+          vandalizedNameOverride ||
+          loc.name ||
           loc.address.city ||
           loc.address.town ||
           loc.address.village ||
+          loc.address.suburb ||
           loc.display_name.split(",")[0];
 
         const nwsRes = await fetch(`https://api.weather.gov/points/${lat},${lon}`, {

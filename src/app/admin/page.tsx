@@ -435,13 +435,13 @@ export default function AdminDashboard() {
               ? "Running…"
               : "1. Daily Summary"}
           </button>
-          <button
+          {/* <button
             onClick={() => handleTrigger("check-alerts")}
             disabled={!!triggerLoading}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
           >
             {triggerLoading === "check-alerts" ? "Running…" : "2. Check Alerts"}
-          </button>
+          </button> */}
           <button
             onClick={() => handleTrigger("send-pending")}
             disabled={!!triggerLoading}
