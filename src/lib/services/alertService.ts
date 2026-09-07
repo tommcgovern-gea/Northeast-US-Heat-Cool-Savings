@@ -1,6 +1,8 @@
 import { db, AlertLog } from '@/lib/db/client';
 import { fetchNWSHourlyForecast } from '@/lib/controllers/weatherController';
 
+type HourlyForecast = { time: string; tempF: number }[];
+
 export interface AlertCheckResult {
   shouldAlert: boolean;
   temperatureChange: number;
@@ -20,7 +22,10 @@ export interface CityAlertConfig {
 }
 
 export class AlertService {
-  async checkSuddenFluctuation(cityId: string): Promise<AlertCheckResult | null> {
+  async checkSuddenFluctuation(
+    cityId: string,
+    forecast?: HourlyForecast,
+  ): Promise<AlertCheckResult | null> {
     const city = await db.getCityById(cityId);
     if (!city || !city.is_active) {
       return null;
@@ -35,7 +40,7 @@ export class AlertService {
       nwsGridY: city.nws_grid_y,
     };
 
-    const forecast = await fetchNWSHourlyForecast(
+    forecast ??= await fetchNWSHourlyForecast(
       config.nwsOffice,
       config.nwsGridX,
       config.nwsGridY
@@ -73,7 +78,10 @@ export class AlertService {
     };
   }
 
-  async calculateDailySummary(cityId: string): Promise<{
+  async calculateDailySummary(
+    cityId: string,
+    forecast?: HourlyForecast,
+  ): Promise<{
     currentTemp: number;
     futureTemp: number;
     averageTemp: number;
@@ -86,7 +94,7 @@ export class AlertService {
       return null;
     }
 
-    const forecast = await fetchNWSHourlyForecast(
+    forecast ??= await fetchNWSHourlyForecast(
       city.nws_office,
       city.nws_grid_x,
       city.nws_grid_y
@@ -111,18 +119,16 @@ export class AlertService {
       (month >= 5 && month <= 8) ||
       (month === 9 && day <= 15);
 
-    const yesterdaySnapshots = await db.getRecentTemperatureSnapshots(cityId, 48);
+    const priorDaySnapshot = await db.getPriorDayTemperatureSnapshot(cityId);
 
     let yesterdayValue = isSummer ? maxTemp : minTemp;
-    if (yesterdaySnapshots.length > 0) {
-      const forecastData = yesterdaySnapshots[0].forecast_data;
+    if (priorDaySnapshot) {
+      const forecastData = priorDaySnapshot.forecast_data;
       if (Array.isArray(forecastData) && forecastData.length >= 24) {
         const yesterdayTemps = forecastData.slice(0, 24).map((f: any) => f.tempF);
         yesterdayValue = isSummer
           ? Math.max(...yesterdayTemps)
           : Math.min(...yesterdayTemps);
-      } else {
-        yesterdayValue = isSummer ? maxTemp : minTemp;
       }
     }
 
@@ -139,9 +145,12 @@ export class AlertService {
     };
   }
 
-  async processCityAlerts(cityId: string): Promise<AlertLog | null> {
-    const result = await this.checkSuddenFluctuation(cityId);
-    
+  async processCityAlerts(
+    cityId: string,
+    precomputedResult?: AlertCheckResult,
+  ): Promise<AlertLog | null> {
+    const result = precomputedResult ?? (await this.checkSuddenFluctuation(cityId));
+
     if (result && result.shouldAlert) {
       const city = await db.getCityById(cityId);
       if (!city) return null;
@@ -171,11 +180,14 @@ export class AlertService {
     return null;
   }
 
-  async saveTemperatureSnapshot(cityId: string): Promise<void> {
+  async saveTemperatureSnapshot(
+    cityId: string,
+    forecast?: HourlyForecast,
+  ): Promise<void> {
     const city = await db.getCityById(cityId);
     if (!city || !city.is_active) return;
 
-    const forecast = await fetchNWSHourlyForecast(
+    forecast ??= await fetchNWSHourlyForecast(
       city.nws_office,
       city.nws_grid_x,
       city.nws_grid_y

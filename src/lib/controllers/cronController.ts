@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
 import { alertService } from "@/lib/services/alertService";
 import { messageService } from "@/lib/services/messageService";
+import { fetchNWSHourlyForecast } from "@/lib/controllers/weatherController";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -74,10 +75,16 @@ export const checkAlerts = async (
     for (const city of activeCities) {
       citiesChecked.push(city.name);
 
-      const result = await alertService.checkSuddenFluctuation(city.id);
-      
+      const forecast = await fetchNWSHourlyForecast(
+        city.nws_office,
+        city.nws_grid_x,
+        city.nws_grid_y,
+      );
+
+      const result = await alertService.checkSuddenFluctuation(city.id, forecast);
+
       if (result && result.shouldAlert) {
-        const alertLog = await alertService.processCityAlerts(city.id);
+        const alertLog = await alertService.processCityAlerts(city.id, result);
         if (alertLog) {
           await messageService.createMessagesFromAlert(alertLog.id, city.id, {
             buildingId: filter.buildingId,
@@ -90,7 +97,7 @@ export const checkAlerts = async (
         alertsFired++;
       }
 
-      await alertService.saveTemperatureSnapshot(city.id);
+      await alertService.saveTemperatureSnapshot(city.id, forecast);
     }
 
     await messageService.sendPendingMessages();
@@ -140,12 +147,18 @@ export const dailySummary = async (
     for (const city of activeCities) {
       citiesProcessed.push(city.name);
 
-      const summary = await alertService.calculateDailySummary(city.id);
-      
+      const forecast = await fetchNWSHourlyForecast(
+        city.nws_office,
+        city.nws_grid_x,
+        city.nws_grid_y,
+      );
+
+      const summary = await alertService.calculateDailySummary(city.id, forecast);
+
       if (summary) {
         if (Math.abs(summary.temperatureChange) < 4) {
           console.log(`Skipping ${city.name}: change ${summary.temperatureChange}°F below 4°F threshold`);
-          await alertService.saveTemperatureSnapshot(city.id);
+          await alertService.saveTemperatureSnapshot(city.id, forecast);
           continue;
         }
 
@@ -177,7 +190,7 @@ export const dailySummary = async (
         summariesByCity.push(city.name);
       }
 
-      await alertService.saveTemperatureSnapshot(city.id);
+      await alertService.saveTemperatureSnapshot(city.id, forecast);
     }
 
     const sendResult = await messageService.sendPendingMessages();
