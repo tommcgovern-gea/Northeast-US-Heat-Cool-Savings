@@ -215,6 +215,7 @@ export default function MessagesPage() {
                 setPage(1);
               },
               itemLabel: "results",
+              limitOptions: [10, 25, 50, 100, 500, 1000],
             }}
           />
         </div>
