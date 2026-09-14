@@ -62,6 +62,7 @@ export default function RecipientsPage() {
   const [recipientsPage, setRecipientsPage] = useState(1);
   const [recipientsTotal, setRecipientsTotal] = useState(0);
   const [recipientsLimit, setRecipientsLimit] = useState(10);
+  const [expandedBuildingsId, setExpandedBuildingsId] = useState<string | null>(null);
 
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [removeValue, setRemoveValue] = useState("");
@@ -543,14 +544,35 @@ export default function RecipientsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{recipient.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{recipient.email || "-"}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{recipient.phone || "-"}</td>
-                  <td className="px-6 py-4 text-sm text-gray-800 max-w-[200px]">
+                  <td className="px-6 py-4 text-sm text-gray-800 max-w-[220px]">
                     {recipient.buildings && recipient.buildings.length > 0 ? (
-                      <span className="text-xs" title={recipient.buildings.map(b => `${b.name} (${b.cityName})`).join(', ')}>
-                        {recipient.buildings.length === 1
-                          ? `${recipient.buildings[0].name} (${recipient.buildings[0].cityName})`
-                          : `${recipient.buildings[0].name} (${recipient.buildings[0].cityName}) +${recipient.buildings.length - 1}`
-                        }
-                      </span>
+                      recipient.buildings.length === 1 ? (
+                        <span className="text-xs">
+                          {recipient.buildings[0].name} ({recipient.buildings[0].cityName})
+                        </span>
+                      ) : expandedBuildingsId === recipient.id ? (
+                        <div className="text-xs space-y-0.5">
+                          {recipient.buildings.map((b) => (
+                            <div key={b.id}>{b.name} ({b.cityName})</div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedBuildingsId(null)}
+                            className="text-gray-800 underline hover:text-black"
+                          >
+                            Show less
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedBuildingsId(recipient.id)}
+                          className="text-xs text-left text-gray-800 hover:text-black"
+                        >
+                          {recipient.buildings[0].name} ({recipient.buildings[0].cityName}){" "}
+                          <span className="underline">+{recipient.buildings.length - 1} more</span>
+                        </button>
+                      )
                     ) : (
                       <span className="text-gray-400">-</span>
                     )}
