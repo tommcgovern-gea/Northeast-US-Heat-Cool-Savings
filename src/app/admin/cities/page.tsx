@@ -5,6 +5,7 @@ import Link from "next/link";
 import { IconDeactivate, IconEdit } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { Toast } from "@/components/Toast";
+import { PaginationBar } from "@/components/PaginationBar";
 
 interface City {
   id: string;
@@ -17,6 +18,7 @@ interface City {
   alertWindowHours: number;
   isActive: boolean;
   buildingCount: number;
+  buildingAddresses?: string[];
   createdAt: string;
 }
 
@@ -24,6 +26,10 @@ export default function CitiesPage() {
   const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [citiesPage, setCitiesPage] = useState(1);
+  const [citiesLimit, setCitiesLimit] = useState(10);
+  const [citiesTotal, setCitiesTotal] = useState(0);
+  const [expandedLocationsId, setExpandedLocationsId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -47,7 +53,7 @@ export default function CitiesPage() {
 
   useEffect(() => {
     fetchCities();
-  }, []);
+  }, [citiesPage, citiesLimit]);
 
   const handleCitySearch = (query: string) => {
     setFormData((prev) => ({ ...prev, name: query }));
@@ -100,18 +106,22 @@ export default function CitiesPage() {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const response = await fetch("/api/cities", {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        `/api/cities?page=${citiesPage}&limit=${citiesLimit}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch cities");
       }
 
       const data = await response.json();
-      setCities(data);
+      setCities(data.items ?? data);
+      setCitiesTotal(data.total ?? (data.items ?? data).length);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -258,6 +268,21 @@ export default function CitiesPage() {
       )}
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
+        {citiesTotal > citiesLimit && (
+          <div className="px-4 py-3 border-b border-gray-200">
+            <PaginationBar
+              page={citiesPage}
+              limit={citiesLimit}
+              total={citiesTotal}
+              onPageChange={setCitiesPage}
+              onLimitChange={(l) => {
+                setCitiesLimit(l);
+                setCitiesPage(1);
+              }}
+              itemLabel="cities"
+            />
+          </div>
+        )}
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -271,7 +296,7 @@ export default function CitiesPage() {
                 NWS Grid
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                Alert Config
+                Location(s)
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                 Buildings
@@ -308,8 +333,38 @@ export default function CitiesPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {city.nwsOffice} ({city.nwsGridX}, {city.nwsGridY})
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                  {city.alertTempDelta}°F / {city.alertWindowHours}h
+                <td className="px-6 py-4 text-sm text-gray-800 max-w-[260px]">
+                  {city.buildingAddresses && city.buildingAddresses.length > 0 ? (
+                    city.buildingAddresses.length === 1 ? (
+                      <span className="text-xs">{city.buildingAddresses[0]}</span>
+                    ) : expandedLocationsId === city.id ? (
+                      <div className="text-xs space-y-0.5">
+                        {city.buildingAddresses.map((addr, i) => (
+                          <div key={i}>{addr}</div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setExpandedLocationsId(null)}
+                          className="text-gray-800 underline hover:text-black"
+                        >
+                          Show less
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedLocationsId(city.id)}
+                        className="text-xs text-left text-gray-800 hover:text-black"
+                      >
+                        {city.buildingAddresses[0]}{" "}
+                        <span className="underline">
+                          +{city.buildingAddresses.length - 1} more
+                        </span>
+                      </button>
+                    )
+                  ) : (
+                    <span className="text-gray-400 text-xs">No buildings yet</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                   {city.buildingCount}

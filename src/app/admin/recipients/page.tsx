@@ -13,7 +13,7 @@ interface Recipient {
   phone: string | null;
   preference: string;
   isActive: boolean;
-  buildings?: { id: string; name: string; cityName: string }[];
+  buildings?: { id: string; name: string; address: string; cityName: string }[];
 }
 
 interface Building {
@@ -548,12 +548,12 @@ export default function RecipientsPage() {
                     {recipient.buildings && recipient.buildings.length > 0 ? (
                       recipient.buildings.length === 1 ? (
                         <span className="text-xs">
-                          {recipient.buildings[0].name} ({recipient.buildings[0].cityName})
+                          {recipient.buildings[0].name} — {recipient.buildings[0].address}
                         </span>
                       ) : expandedBuildingsId === recipient.id ? (
                         <div className="text-xs space-y-0.5">
                           {recipient.buildings.map((b) => (
-                            <div key={b.id}>{b.name} ({b.cityName})</div>
+                            <div key={b.id}>{b.name} — {b.address}</div>
                           ))}
                           <button
                             type="button"
@@ -569,7 +569,7 @@ export default function RecipientsPage() {
                           onClick={() => setExpandedBuildingsId(recipient.id)}
                           className="text-xs text-left text-gray-800 hover:text-black"
                         >
-                          {recipient.buildings[0].name} ({recipient.buildings[0].cityName}){" "}
+                          {recipient.buildings[0].name} — {recipient.buildings[0].address}{" "}
                           <span className="underline">+{recipient.buildings.length - 1} more</span>
                         </button>
                       )

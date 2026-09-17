@@ -78,10 +78,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const buildingDetails = new Map<string, { id: string; name: string; cityName: string }>();
+    const buildingDetails = new Map<string, { id: string; name: string; address: string; cityName: string }>();
     if (buildingIds.size > 0) {
       const bRows = toRows(await sql`
-        SELECT b.id, b.name, c.name AS city_name
+        SELECT b.id, b.name, b.address, c.name AS city_name
         FROM buildings b
         LEFT JOIN cities c ON c.id = b.city_id
         WHERE b.id = ANY(${Array.from(buildingIds)})
@@ -90,6 +90,7 @@ export async function GET(req: NextRequest) {
         buildingDetails.set((b as any).id, {
           id: (b as any).id,
           name: (b as any).name,
+          address: (b as any).address,
           cityName: (b as any).city_name,
         });
       }
@@ -117,7 +118,7 @@ export async function GET(req: NextRequest) {
     for (const bid of recipientBuildingIds) {
       if (!buildingDetails.has(bid)) {
         const bRows = toRows(await sql`
-          SELECT b.id, b.name, c.name AS city_name
+          SELECT b.id, b.name, b.address, c.name AS city_name
           FROM buildings b
           LEFT JOIN cities c ON c.id = b.city_id
           WHERE b.id = ${bid}
@@ -126,6 +127,7 @@ export async function GET(req: NextRequest) {
           buildingDetails.set((bRows[0] as any).id, {
             id: (bRows[0] as any).id,
             name: (bRows[0] as any).name,
+            address: (bRows[0] as any).address,
             cityName: (bRows[0] as any).city_name,
           });
         }

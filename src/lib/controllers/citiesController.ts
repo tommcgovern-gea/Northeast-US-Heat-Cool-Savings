@@ -21,28 +21,71 @@ export const getCities = async (req: NextRequest) => {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const cities = await db.getCities();
-    const allCities = Array.isArray(cities) ? cities : [];
+    // Pagination is opt-in via ?page= so existing callers (dropdowns/selectors
+    // elsewhere) that need the full list keep getting a plain array back.
+    const pageParam = req.nextUrl.searchParams.get("page");
+    const paginate = pageParam !== null;
+    const page = Math.max(1, parseInt(pageParam || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") || "10", 10)));
+    const offset = (page - 1) * limit;
 
-    const citiesWithCounts = await Promise.all(
-      allCities.map(async (city) => {
-        const buildings = await db.getBuildings(city.id);
-        return {
-          id: city.id,
-          name: city.name,
-          state: city.state,
-          nwsOffice: city.nws_office,
-          nwsGridX: city.nws_grid_x,
-          nwsGridY: city.nws_grid_y,
-          alertTempDelta: Number(city.alert_temp_delta),
-          alertWindowHours: city.alert_window_hours,
-          isActive: city.is_active,
-          buildingCount: buildings.length,
-          createdAt: city.created_at,
-        };
-      })
-    );
+    let allCities: any[];
+    let total = 0;
+    if (paginate) {
+      const totalRows = await sql`SELECT COUNT(*) FROM cities`;
+      total = parseInt(String((totalRows as any[])[0].count), 10);
+      allCities = await sql`SELECT * FROM cities ORDER BY name LIMIT ${limit} OFFSET ${offset}`;
+    } else {
+      const cities = await db.getCities();
+      allCities = Array.isArray(cities) ? cities : [];
+    }
 
+    // Batched instead of one building-count query per city (was firing a
+    // concurrent DB round trip per city via Promise.all, which starts failing
+    // once the city count grows).
+    const cityIds = allCities.map((c) => c.id);
+    const buildingRows = cityIds.length
+      ? await sql`
+          SELECT city_id, address
+          FROM buildings
+          WHERE city_id = ANY(${cityIds})
+          ORDER BY name
+        `
+      : [];
+    const buildingAddressesByCity = new Map<string, string[]>();
+    for (const row of buildingRows as any[]) {
+      const list = buildingAddressesByCity.get(row.city_id) || [];
+      list.push(row.address);
+      buildingAddressesByCity.set(row.city_id, list);
+    }
+
+    const citiesWithCounts = allCities.map((city) => {
+      const addresses = buildingAddressesByCity.get(city.id) || [];
+      return {
+        id: city.id,
+        name: city.name,
+        state: city.state,
+        nwsOffice: city.nws_office,
+        nwsGridX: city.nws_grid_x,
+        nwsGridY: city.nws_grid_y,
+        alertTempDelta: Number(city.alert_temp_delta),
+        alertWindowHours: city.alert_window_hours,
+        isActive: city.is_active,
+        buildingCount: addresses.length,
+        buildingAddresses: addresses,
+        createdAt: city.created_at,
+      };
+    });
+
+    if (paginate) {
+      return NextResponse.json({
+        items: citiesWithCounts,
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      });
+    }
     return NextResponse.json(citiesWithCounts);
   } catch (error) {
     console.error("Error fetching cities:", error);
@@ -186,10 +229,14 @@ export async function searchCitiesByName(query: string): Promise<CitySearchSugge
         state?: string;
         state_district?: string;
         county?: string;
+        city_district?: string;
         city?: string;
         town?: string;
         village?: string;
         suburb?: string;
+        house_number?: string;
+        road?: string;
+        postcode?: string;
       };
     }) => {
       try {
@@ -198,7 +245,11 @@ export async function searchCitiesByName(query: string): Promise<CitySearchSugge
         const stateName = loc.address.state || loc.address.state_district || "";
         const stateCode =
           stateMap[stateName] || (stateName.length === 2 ? stateName.toUpperCase() : "");
-        const county = loc.address.county || "";
+        // Nominatim puts the NYC borough's legal county name under `county` for most
+        // results, but under `city_district` for many street/POI-level results (e.g.
+        // subway stations, businesses) — check both so the borough override doesn't
+        // silently miss and fall back to a confusing raw place/POI name.
+        const county = loc.address.county || loc.address.city_district || "";
         const vandalizedNameOverride = stateCode === "NY" ? NYC_BOROUGH_BY_COUNTY[county] : undefined;
         const cityName =
           vandalizedNameOverride ||
@@ -208,6 +259,19 @@ export async function searchCitiesByName(query: string): Promise<CitySearchSugge
           loc.address.village ||
           loc.address.suburb ||
           loc.display_name.split(",")[0];
+
+        // Full street-level address (house number + road, city, state, zip) so the
+        // dropdown shows exactly what the user typed/expects to see, rather than a
+        // POI/business/subway-station name that may not obviously match their search.
+        const streetLine = [loc.address.house_number, loc.address.road]
+          .filter(Boolean)
+          .join(" ");
+        const addressCity =
+          loc.address.city || loc.address.town || loc.address.village || cityName;
+        const addressLine = [streetLine, addressCity].filter(Boolean).join(", ");
+        const fullAddress =
+          [addressLine, stateCode || stateName].filter(Boolean).join(", ") +
+          (loc.address.postcode ? ` ${loc.address.postcode}` : "");
 
         const nwsRes = await fetch(`https://api.weather.gov/points/${lat},${lon}`, {
           headers: { "User-Agent": "TempAlertPortal/1.0" },
@@ -221,7 +285,7 @@ export async function searchCitiesByName(query: string): Promise<CitySearchSugge
           nwsOffice: nwsData.properties.gridId,
           nwsGridX: nwsData.properties.gridX,
           nwsGridY: nwsData.properties.gridY,
-          displayName: `${cityName}, ${stateCode || stateName}`,
+          displayName: fullAddress || `${cityName}, ${stateCode || stateName}`,
         };
       } catch {
         return null;
