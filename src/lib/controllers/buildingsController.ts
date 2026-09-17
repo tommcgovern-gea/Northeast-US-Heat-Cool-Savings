@@ -26,9 +26,32 @@ export const getBuildings = async (req: NextRequest) => {
     }
 
     let buildings: any[];
+    let total = 0;
+
+    // Pagination is opt-in via ?page= so existing callers (dropdowns/selectors
+    // elsewhere) that need the full list keep getting a plain array back.
+    const pageParam = req.nextUrl.searchParams.get("page");
+    const paginate = pageParam !== null && (user.role === "ADMIN" || user.role === "STAFF");
+    const page = Math.max(1, parseInt(pageParam || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") || "10", 10)));
+    const offset = (page - 1) * limit;
 
     if (user.role === "ADMIN" || user.role === "STAFF") {
-      buildings = await db.getBuildings();
+      if (paginate) {
+        const totalRows = await sql`
+          SELECT COUNT(*) FROM buildings b
+          WHERE EXISTS (SELECT 1 FROM recipients r WHERE r.building_id = b.id)
+        `;
+        total = parseInt(String((totalRows as any[])[0].count), 10);
+        buildings = await sql`
+          SELECT b.* FROM buildings b
+          WHERE EXISTS (SELECT 1 FROM recipients r WHERE r.building_id = b.id)
+          ORDER BY b.name
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+      } else {
+        buildings = await db.getBuildings();
+      }
     } else if (user.role === "BUILDING") {
       const buildingIds = (user.buildingIds && user.buildingIds.length) ? user.buildingIds : (user.buildingId ? [user.buildingId] : []);
       if (buildingIds.length === 0) {
@@ -44,35 +67,70 @@ export const getBuildings = async (req: NextRequest) => {
     }
 
     const list = Array.isArray(buildings) ? buildings : [];
-    const responseData = await Promise.all(
-      list.map(async (b) => {
-        const recipients = await db.getBuildingUsers(b.id);
-        let complianceRate: number | null = null;
-        try {
-          complianceRate = await complianceService.getBuildingComplianceRate(b.id, 30);
-        } catch {
-          // Tables may not exist yet
-        }
-        const city = await db.getCityById(b.city_id);
+    const buildingIds = list.map((b) => b.id);
+    const cityIds = Array.from(new Set(list.map((b) => b.city_id).filter(Boolean)));
 
-        return {
-          id: b.id,
-          name: b.name,
-          address: b.address,
-          cityId: b.city_id,
-          cityName: city?.name || 'Unknown',
-          isActive: b.is_active,
-          isPaused: b.is_paused,
-          recipientCount: recipients.length,
-          complianceRate: complianceRate != null ? Math.round(complianceRate * 10) / 10 : null,
-        };
-      })
-    );
+    // Batched instead of N-per-building queries (was firing 3 concurrent DB
+    // round trips per building via Promise.all, which starts failing once the
+    // building count grows — see complianceService.getBuildingComplianceRatesBatch).
+    // Recipient list/count comes from the `recipients` table (people who actually
+    // receive alerts) rather than `users` (portal login accounts) — a building can
+    // have real recipients with no portal login, and previously those buildings
+    // were silently hidden from this list for ADMIN/STAFF.
+    const [recipientRows, complianceMap, cityRows] = await Promise.all([
+      buildingIds.length
+        ? sql`
+            SELECT building_id, name, email, phone, preference
+            FROM recipients
+            WHERE building_id = ANY(${buildingIds}) AND is_active = true
+            ORDER BY name
+          `
+        : Promise.resolve([]),
+      complianceService.getBuildingComplianceRatesBatch(buildingIds, 30).catch(() => new Map()),
+      cityIds.length ? sql`SELECT id, name FROM cities WHERE id = ANY(${cityIds})` : Promise.resolve([]),
+    ]);
 
-    const filtered = user.role === "ADMIN" || user.role === "STAFF"
+    const recipientsByBuilding = new Map<string, { name: string; email: string | null }[]>();
+    for (const row of recipientRows as any[]) {
+      const arr = recipientsByBuilding.get(row.building_id) || [];
+      arr.push({ name: row.name, email: row.email });
+      recipientsByBuilding.set(row.building_id, arr);
+    }
+    const cityNameById = new Map<string, string>();
+    for (const row of cityRows as any[]) {
+      cityNameById.set(row.id, row.name);
+    }
+
+    const responseData = list.map((b) => {
+      const complianceRate = complianceMap.get(b.id) ?? null;
+      const recipients = recipientsByBuilding.get(b.id) || [];
+      return {
+        id: b.id,
+        name: b.name,
+        address: b.address,
+        cityId: b.city_id,
+        cityName: cityNameById.get(b.city_id) || 'Unknown',
+        isActive: b.is_active,
+        isPaused: b.is_paused,
+        recipientCount: recipients.length,
+        recipients,
+        complianceRate: complianceRate != null ? Math.round(complianceRate * 10) / 10 : null,
+      };
+    });
+
+    const filtered = (user.role === "ADMIN" || user.role === "STAFF") && !paginate
       ? responseData.filter((b) => b.recipientCount > 0)
       : responseData;
 
+    if (paginate) {
+      return NextResponse.json({
+        items: filtered,
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      });
+    }
     return NextResponse.json(filtered);
   } catch (error) {
     console.error("Error fetching buildings:", error);

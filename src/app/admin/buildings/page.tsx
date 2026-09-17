@@ -5,6 +5,7 @@ import Link from "next/link";
 import { IconDelete, IconEdit, IconPause, IconResume, IconView } from "@/components/admin/ActionIcons";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { Toast } from "@/components/Toast";
+import { PaginationBar } from "@/components/PaginationBar";
 
 interface Building {
   id: string;
@@ -15,6 +16,7 @@ interface Building {
   isActive: boolean;
   isPaused: boolean;
   recipientCount: number;
+  recipients?: { name: string; email: string | null }[];
   complianceRate: number | null;
 }
 
@@ -43,10 +45,14 @@ export default function BuildingsPage() {
   const [editFormError, setEditFormError] = useState("");
   const [sortKey, setSortKey] = useState<"name" | "cityName" | "recipientCount" | "complianceRate" | "status">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [buildingsPage, setBuildingsPage] = useState(1);
+  const [buildingsLimit, setBuildingsLimit] = useState(10);
+  const [buildingsTotal, setBuildingsTotal] = useState(0);
+  const [expandedRecipientsId, setExpandedRecipientsId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [buildingsPage, buildingsLimit]);
 
   useEffect(() => {
     const isOpen = showCreateModal || showEditModal;
@@ -60,9 +66,11 @@ export default function BuildingsPage() {
       if (!token) return;
 
       const [buildingsRes, citiesRes] = await Promise.all([
-        fetch("/api/buildings", {
+        fetch(`/api/buildings?page=${buildingsPage}&limit=${buildingsLimit}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        // Unpaginated on purpose — this feeds the city dropdown in the
+        // create/edit forms, which needs the full list.
         fetch("/api/cities", {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -77,7 +85,8 @@ export default function BuildingsPage() {
         citiesRes.json(),
       ]);
 
-      setBuildings(buildingsData);
+      setBuildings(buildingsData.items ?? buildingsData);
+      setBuildingsTotal(buildingsData.total ?? (buildingsData.items ?? buildingsData).length);
       setCities(citiesData);
     } catch (err: any) {
       setError(err.message);
@@ -333,6 +342,21 @@ export default function BuildingsPage() {
       )}
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
+        {buildingsTotal > buildingsLimit && (
+          <div className="px-4 py-3 border-b border-gray-200">
+            <PaginationBar
+              page={buildingsPage}
+              limit={buildingsLimit}
+              total={buildingsTotal}
+              onPageChange={setBuildingsPage}
+              onLimitChange={(l) => {
+                setBuildingsLimit(l);
+                setBuildingsPage(1);
+              }}
+              itemLabel="buildings"
+            />
+          </div>
+        )}
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -384,8 +408,38 @@ export default function BuildingsPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                     {building.cityName}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                    {building.recipientCount}
+                  <td className="px-6 py-4 text-sm text-gray-800 max-w-[220px]">
+                    {building.recipients && building.recipients.length > 0 ? (
+                      building.recipients.length === 1 ? (
+                        <span className="text-xs">{building.recipients[0].name}</span>
+                      ) : expandedRecipientsId === building.id ? (
+                        <div className="text-xs space-y-0.5">
+                          {building.recipients.map((r, i) => (
+                            <div key={i}>{r.name}</div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedRecipientsId(null)}
+                            className="text-gray-800 underline hover:text-black"
+                          >
+                            Show less
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedRecipientsId(building.id)}
+                          className="text-xs text-left text-gray-800 hover:text-black"
+                        >
+                          {building.recipients[0].name}{" "}
+                          <span className="underline">
+                            +{building.recipients.length - 1} more
+                          </span>
+                        </button>
+                      )
+                    ) : (
+                      <span className="text-gray-400 text-xs">{building.recipientCount}</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                     {building.complianceRate != null ? `${building.complianceRate.toFixed(1)}%` : "N/A"}
