@@ -464,7 +464,7 @@ export default function RecipientsPage() {
             <option value="">All Buildings</option>
             {buildings.map((building) => (
               <option key={building.id} value={building.id} className="text-gray-900 bg-white">
-                {building.name} - {building.cityName}
+                {building.name}
               </option>
             ))}
           </select>
@@ -654,7 +654,7 @@ export default function RecipientsPage() {
                               }}
                               className="rounded border-gray-400 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="text-sm text-gray-900">{building.name} – {building.cityName}</span>
+                            <span className="text-sm text-gray-900">{building.name}</span>
                           </label>
                         ))}
                       </div>

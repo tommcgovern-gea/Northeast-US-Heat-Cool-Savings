@@ -41,11 +41,13 @@ export const getBuildings = async (req: NextRequest) => {
         const totalRows = await sql`
           SELECT COUNT(*) FROM buildings b
           WHERE EXISTS (SELECT 1 FROM recipients r WHERE r.building_id = b.id)
+             OR b.created_at > NOW() - INTERVAL '30 days'
         `;
         total = parseInt(String((totalRows as any[])[0].count), 10);
         buildings = await sql`
           SELECT b.* FROM buildings b
           WHERE EXISTS (SELECT 1 FROM recipients r WHERE r.building_id = b.id)
+             OR b.created_at > NOW() - INTERVAL '30 days'
           ORDER BY b.name
           LIMIT ${limit} OFFSET ${offset}
         `;
@@ -118,8 +120,14 @@ export const getBuildings = async (req: NextRequest) => {
       };
     });
 
+    // Buildings with no recipients stay hidden, except ones created in the last 30 days,
+    // so a newly added building can be found and given its first recipient.
+    const recentCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const recentIds = new Set(
+      list.filter((b) => new Date(b.created_at).getTime() > recentCutoff).map((b) => b.id),
+    );
     const filtered = (user.role === "ADMIN" || user.role === "STAFF") && !paginate
-      ? responseData.filter((b) => b.recipientCount > 0)
+      ? responseData.filter((b) => b.recipientCount > 0 || recentIds.has(b.id))
       : responseData;
 
     if (paginate) {

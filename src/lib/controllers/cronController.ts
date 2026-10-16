@@ -156,6 +156,7 @@ export const dailySummary = async (
       const summary = await alertService.calculateDailySummary(city.id, forecast);
 
       if (summary) {
+        // Both seasons: alert on a 4°F change in either direction.
         if (Math.abs(summary.temperatureChange) < 4) {
           console.log(`Skipping ${city.name}: change ${summary.temperatureChange}°F below 4°F threshold`);
           await alertService.saveTemperatureSnapshot(city.id, forecast);
