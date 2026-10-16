@@ -1,5 +1,6 @@
 import { db, AlertLog } from '@/lib/db/client';
 import { fetchNWSHourlyForecast } from '@/lib/controllers/weatherController';
+import { isSummerSeason } from '@/lib/message-template-defaults';
 
 type HourlyForecast = { time: string; tempF: number }[];
 
@@ -111,13 +112,7 @@ export class AlertService {
     const minTemp = Math.min(...todayTemps);
     const maxTemp = Math.max(...todayTemps);
 
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const day = now.getDate();
-    const isSummer =
-      (month === 4 && day >= 16) ||
-      (month >= 5 && month <= 8) ||
-      (month === 9 && day <= 15);
+    const isSummer = isSummerSeason();
 
     const priorDaySnapshot = await db.getPriorDayTemperatureSnapshot(cityId);
 

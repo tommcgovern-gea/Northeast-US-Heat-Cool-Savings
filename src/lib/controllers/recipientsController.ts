@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db/client";
+import { db, sql, toRows } from "@/lib/db/client";
 import { verifyToken, TokenPayload, canAccessBuilding } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
@@ -41,14 +41,42 @@ export const getRecipients = async (req: NextRequest) => {
     }
 
     const recipients = await db.getBuildingUsers(buildingId, true);
+    // Alerts are sent from the recipients table, so its is_active is the real status;
+    // the users row is only the portal login and stays active.
+    const recipientRows = toRows(await sql`
+      SELECT id, name, email, phone, COALESCE(preference, 'email') AS preference, is_active
+      FROM recipients
+      WHERE building_id = ${buildingId}
+      ORDER BY created_at
+    `) as any[];
+    const activeByEmail = new Map<string, boolean>(
+      recipientRows
+        .filter((row) => row.email)
+        .map((row) => [String(row.email).toLowerCase(), !!row.is_active]),
+    );
     const responseData = recipients.map((r) => ({
       id: r.id,
       name: r.name,
       email: r.email,
       phone: r.phone,
       preference: r.preference,
-      isActive: r.is_active,
+      isActive: activeByEmail.get((r.email || "").toLowerCase()) ?? r.is_active,
     }));
+    // Recipients with no portal login (e.g. added in bulk) still belong in this list.
+    const listedEmails = new Set(
+      recipients.map((r) => (r.email || "").toLowerCase()).filter(Boolean),
+    );
+    for (const row of recipientRows) {
+      if (row.email && listedEmails.has(String(row.email).toLowerCase())) continue;
+      responseData.push({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        phone: row.phone,
+        preference: row.preference,
+        isActive: !!row.is_active,
+      });
+    }
 
     return NextResponse.json(responseData);
   } catch (error) {

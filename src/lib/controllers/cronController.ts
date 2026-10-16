@@ -3,6 +3,7 @@ import { db } from "@/lib/db/client";
 import { alertService } from "@/lib/services/alertService";
 import { messageService } from "@/lib/services/messageService";
 import { fetchNWSHourlyForecast } from "@/lib/controllers/weatherController";
+import { isSummerSeason } from "@/lib/message-template-defaults";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -156,8 +157,12 @@ export const dailySummary = async (
       const summary = await alertService.calculateDailySummary(city.id, forecast);
 
       if (summary) {
-        if (Math.abs(summary.temperatureChange) < 4) {
-          console.log(`Skipping ${city.name}: change ${summary.temperatureChange}°F below 4°F threshold`);
+        // Summer: alert on a 4°F change either way. Winter: alert only on a drop of 4°F or more.
+        const belowThreshold = isSummerSeason()
+          ? Math.abs(summary.temperatureChange) < 4
+          : summary.temperatureChange > -4;
+        if (belowThreshold) {
+          console.log(`Skipping ${city.name}: change ${summary.temperatureChange}°F does not meet the ${isSummerSeason() ? "4°F" : "4°F drop"} threshold`);
           await alertService.saveTemperatureSnapshot(city.id, forecast);
           continue;
         }

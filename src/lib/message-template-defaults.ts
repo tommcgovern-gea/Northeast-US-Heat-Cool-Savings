@@ -34,6 +34,17 @@ export interface TemplateVariables {
   firstName?: string;
 }
 
+/** Summer (cooling) runs April 16 – October 14; winter (heating) starts October 15. */
+export function isSummerSeason(date: Date = new Date()): boolean {
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return (
+    (month === 4 && day >= 16) ||
+    (month >= 5 && month <= 9) ||
+    (month === 10 && day <= 14)
+  );
+}
+
 export function resolveSeasonalInstruction(
   direction: "increase" | "decrease" | "stable" = "increase",
   _temperatureData?: Record<string, unknown> | null,
@@ -43,14 +54,7 @@ export function resolveSeasonalInstruction(
     referenceDate instanceof Date
       ? referenceDate
       : new Date(referenceDate);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-
-  // Summer: April 16 – September 15
-  const isSummer =
-    (month === 4 && day >= 16) ||
-    (month >= 5 && month <= 8) ||
-    (month === 9 && day <= 15);
+  const isSummer = isSummerSeason(date);
 
   if (direction === "increase") {
     return isSummer
