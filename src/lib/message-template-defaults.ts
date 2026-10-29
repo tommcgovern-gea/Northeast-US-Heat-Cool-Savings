@@ -59,13 +59,13 @@ export function resolveSeasonalInstruction(
   if (direction === "increase") {
     return isSummer
       ? "The outside temperature is increasing, please decrease temperature setpoint settings once or twice to increase cooling and keep your occupants comfortable."
-      : "The ambient temperature is increasing, please raise your heating temperatures setpoint settings once or twice to decrease heating and keep saving energy.";
+      : "The ambient temperature is increasing, please lower your heating temperatures setpoint settings once or twice to decrease heating and keep saving energy.";
   }
 
   if (direction === "decrease") {
     return isSummer
       ? "The outside temperature is decreasing, please raise temperature setpoint settings once or twice to decrease cooling and keep saving energy."
-      : "The ambient temperature is decreasing, please lower your heating temperatures setpoint settings once or twice to increase heating and keep occupants comfortable.";
+      : "The ambient temperature is decreasing, please raise your heating temperatures setpoint settings once or twice to increase heating and keep occupants comfortable.";
   }
 
   return "";
