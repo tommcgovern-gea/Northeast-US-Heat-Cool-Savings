@@ -80,7 +80,7 @@ Please keep monitoring temperatures and adjusting throughout the day.`,
 
 {{seasonalInstruction}}
 
-Reminder to send us a photo of the changes in the next two hours to keep your guarantee active.
+Reminder to send us a photo of the changes in the next two hours (or by 9am, in your time zone, if outside 8am-10pm) to keep your guarantee active.
 
 Tom
 
@@ -90,7 +90,7 @@ Upload photo or BMS record: {{uploadUrl}}`,
 
 {{seasonalInstruction}}
 
-Reminder to send us a photo of the changes in the next two hours to keep your guarantee active.
+Reminder to send us a photo of the changes in the next two hours (or by 9am, in your time zone, if outside 8am-10pm) to keep your guarantee active.
 
 Tom
 
@@ -99,7 +99,7 @@ Upload photo or BMS record: {{uploadUrl}}`,
   alert_increase: `Here is a special temperature setting alert.
 Current Temperature: {{currentTemp}}°F | Future Temperature: {{futureTemp}}°F (Change: {{temperatureDelta}}°F)
 Temperatures appear to be increasing suddenly. {{seasonalInstruction}}
-Please forward pictures of temperature setting changes in the next two hours, to keep your guarantee active.
+Please forward pictures of temperature setting changes in the next two hours (or by 9am, in your time zone, if outside 8am-10pm), to keep your guarantee active.
 Please keep monitoring temperatures and adjusting throughout the day.
 
 Upload photo or BMS record: {{uploadUrl}}`,
@@ -107,7 +107,7 @@ Upload photo or BMS record: {{uploadUrl}}`,
   alert_decrease: `Here is a special temperature setting alert.
 Current Temperature: {{currentTemp}}°F | Future Temperature: {{futureTemp}}°F (Change: {{temperatureDelta}}°F)
 Temperatures appear to be decreasing suddenly. {{seasonalInstruction}}
-Please forward pictures of temperature setting changes in the next two hours, to keep your guarantee active.
+Please forward pictures of temperature setting changes in the next two hours (or by 9am, in your time zone, if outside 8am-10pm), to keep your guarantee active.
 Please keep monitoring temperatures and adjusting throughout the day.
 
 Upload photo or BMS record: {{uploadUrl}}`,
